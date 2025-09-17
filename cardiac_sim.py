@@ -111,7 +111,7 @@ if st.sidebar.button('Run Simulation', type="primary"):
         t = solution.t
         X = solution.y.T
 
-        # --- Post-Simulation Analysis ---
+        # --- Post-Simulation Analysis (Advanced Version) ---
         LVOF = np.zeros(len(t))
         LVP = np.zeros(len(t))
         RL=8.000E-02; R1=3.751E-03; ELD=0.1; ELS=1.375;
@@ -124,25 +124,35 @@ if st.sidebar.button('Run Simulation', type="primary"):
             S1 = (Z1 > 0)
             LVOF[i] = Z1 * S1 / (RL + R1)
             LVP[i] = UL + EL * X[i, 11] - RL * LVOF[i] # Left Ventricular Pressure
+
+        # --- Find the last STABLE beat ---
+        end_time = t[-1]
+        stable_beat_start_time = end_time - 2 * Tc
+        stable_beat_end_time = end_time - Tc
+
+        if stable_beat_start_time < t[0]:
+            stable_beat_start_time = t[0]
+            stable_beat_end_time = t[0] + Tc
+
+        stable_beat_indices = np.where((t >= stable_beat_start_time) & (t < stable_beat_end_time))
+
+        t_beat = t[stable_beat_indices]
+        LVOF_beat = LVOF[stable_beat_indices]
         
-        # Analyze the last cardiac cycle for stable metrics
-        last_beat_indices = np.where(t >= (t[-1] - Tc))
-        t_beat = t[last_beat_indices]
-        LVOF_beat = LVOF[last_beat_indices]
-        
-        StrokeVolume = np.trapz(LVOF_beat, t_beat)
+        # --- DEFINITIVE FIX for ValueError ---
+        # Ensure both arrays are 1D vectors (flattened) before plotting
+        LV_Volume_beat = X[stable_beat_indices, 11].flatten()
+        LVP_beat = LVP[stable_beat_indices].flatten()
+        # -------------------------------------
+
+        if len(t_beat) > 1:
+            StrokeVolume = np.trapz(LVOF_beat, t_beat)
+        else:
+            StrokeVolume = 0
+
         CardiacOutput = StrokeVolume * heart_rate / 1000
-        
-        SystolicPressure = np.max(X[last_beat_indices, 0])
-        DiastolicPressure = np.min(X[last_beat_indices, 0])
-        LV_Volume_beat = X[last_beat_indices, 11]
-        LVP_beat = LVP[last_beat_indices]
-        
-        # --- FIX for ValueError: Ensure arrays have the same length ---
-        min_len = min(len(LV_Volume_beat), len(LVP_beat))
-        LV_Volume_beat = LV_Volume_beat[:min_len]
-        LVP_beat = LVP_beat[:min_len]
-        # -----------------------------------------------------------
+        SystolicPressure = np.max(X[stable_beat_indices, 0]) if len(stable_beat_indices[0]) > 0 else 0
+        DiastolicPressure = np.min(X[stable_beat_indices, 0]) if len(stable_beat_indices[0]) > 0 else 0
 
     # --- Display Results ---
     st.header('Simulation Results')
@@ -177,7 +187,8 @@ if st.sidebar.button('Run Simulation', type="primary"):
 
     with tab2:
         fig2, ax = plt.subplots(1, 1, figsize=(8, 6))
-        ax.plot(LV_Volume_beat, LVP_beat, 'g-', linewidth=2)
+        if len(LV_Volume_beat) > 0 and len(LVP_beat) > 0:
+            ax.plot(LV_Volume_beat, LVP_beat, 'g-', linewidth=2)
         ax.set_title('Left Ventricle Pressure-Volume (PV) Loop')
         ax.set_xlabel('LV Volume (cm³)')
         ax.set_ylabel('LV Pressure (mmHg)')
