@@ -139,11 +139,8 @@ if st.sidebar.button('Run Simulation', type="primary"):
         t_beat = t[stable_beat_indices]
         LVOF_beat = LVOF[stable_beat_indices]
         
-        # --- DEFINITIVE FIX for ValueError ---
-        # Ensure both arrays are 1D vectors (flattened) before plotting
         LV_Volume_beat = X[stable_beat_indices, 11].flatten()
         LVP_beat = LVP[stable_beat_indices].flatten()
-        # -------------------------------------
 
         if len(t_beat) > 1:
             StrokeVolume = np.trapz(LVOF_beat, t_beat)
@@ -171,7 +168,8 @@ if st.sidebar.button('Run Simulation', type="primary"):
     tab1, tab2 = st.tabs(["Hemodynamic Waveforms", "Ventricular Function (PV Loop)"])
 
     with tab1:
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+        # --- FIX for Scaling: Removed figsize and added use_container_width ---
+        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
         ax1.plot(t, X[:, 0], 'b-', linewidth=1.5)
         ax1.set_title('Aortic Pressure')
         ax1.set_ylabel('mmHg')
@@ -183,14 +181,15 @@ if st.sidebar.button('Run Simulation', type="primary"):
         ax2.set_ylabel('mmHg')
         ax2.set_xlabel('Time (sec)')
         ax2.grid(True)
-        st.pyplot(fig)
+        st.pyplot(fig, use_container_width=True)
 
     with tab2:
-        fig2, ax = plt.subplots(1, 1, figsize=(8, 6))
+        # --- FIX for Scaling: Removed figsize and added use_container_width ---
+        fig2, ax = plt.subplots(1, 1)
         if len(LV_Volume_beat) > 0 and len(LVP_beat) > 0:
             ax.plot(LV_Volume_beat, LVP_beat, 'g-', linewidth=2)
         ax.set_title('Left Ventricle Pressure-Volume (PV) Loop')
         ax.set_xlabel('LV Volume (cm³)')
         ax.set_ylabel('LV Pressure (mmHg)')
         ax.grid(True)
-        st.pyplot(fig2)
+        st.pyplot(fig2, use_container_width=True)
