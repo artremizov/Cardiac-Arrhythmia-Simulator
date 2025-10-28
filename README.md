@@ -55,4 +55,4 @@ Alternatively, you can cite the GitHub repository directly:
 * Remizov, A. (YYYY). Cardiac-Arrhythmia-Simulator (Version X.Y.Z) [Software]. Available from https://github.com/artremizov/Cardiac-Arrhythmia-Simulator
 
 License:
-MIT
+CC BY-NC 4.0
