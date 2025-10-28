@@ -1,3 +1,6 @@
+# Cardiac Arrhythmia Simulator
+Copyright (c) 2025 Artemii Remizov
+
 Interactive Cardiovascular Simulator
 
 This Streamlit application provides an interactive platform for simulating the human cardiovascular system based on the verified 1988 lumped-parameter model by Avanzolini et al. It allows users to explore the effects of various physiological and pathophysiological conditions on hemodynamics.
@@ -54,5 +57,5 @@ If you use this simulator or code in your research or educational work, please c
 Alternatively, you can cite the GitHub repository directly:
 * Remizov, A. (YYYY). Cardiac-Arrhythmia-Simulator (Version X.Y.Z) [Software]. Available from https://github.com/artremizov/Cardiac-Arrhythmia-Simulator
 
-License:
-CC BY-NC 4.0
+License: Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
+See the LICENSE file for details. This software may not be used for commercial purposes.
