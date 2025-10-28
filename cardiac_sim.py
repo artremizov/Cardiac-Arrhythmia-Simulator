@@ -1,3 +1,11 @@
+# Copyright (c) 2025 Artemii Remizov
+#
+# Licensed under the Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)
+# You may obtain a copy of the License at
+# https://creativecommons.org/licenses/by-nc/4.0/
+# See the LICENSE file for the full text.
+#
+# This software may not be used for commercial purposes.
 import streamlit as st
 import numpy as np
 from scipy.integrate import solve_ivp
