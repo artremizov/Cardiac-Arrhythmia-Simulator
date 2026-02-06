@@ -52,10 +52,9 @@ Avanzolini, G., Barbini, P., Cappello, A., & Cevenini, G. (1988). CADCS simulati
 
 ## Citation
 If you use this simulator or code in your research or educational work, please cite it. You can cite the associated arXiv paper:
-* Remizov, A., & Lapin, S. (YYYY). Quantifying the Hemodynamic Effects of Ventricular Fibrillation using a Verified Computational Model. *arXiv preprint arXiv:XXXX.XXXXX*.
-(Replace YYYY with the year and XXXX.XXXXX with the arXiv identifier once you have it).
+* Remizov, A., & Lapin, S. (2025). Quantifying the Hemodynamic Effects of Ventricular Fibrillation using a Verified Computational Model. *arXiv preprint arXiv:2511.00358*.
 Alternatively, you can cite the GitHub repository directly:
-* Remizov, A. (YYYY). Cardiac-Arrhythmia-Simulator (Version X.Y.Z) [Software]. Available from https://github.com/artremizov/Cardiac-Arrhythmia-Simulator
+* Remizov, A. (2025). Cardiac-Arrhythmia-Simulator (Version 1.2) [Software]. Available from https://github.com/artremizov/Cardiac-Arrhythmia-Simulator
 
 License: Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
 See the LICENSE file for details. This software may not be used for commercial purposes.
