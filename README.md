@@ -1,66 +1,71 @@
-# Cardiac Arrhythmia Simulator
+# CardioSim — Cardiovascular Hemodynamic Simulator
 
-Interactive cardiovascular hemodynamic simulator built on the Avanzolini et al. (1988) lumped-parameter model, featuring synthetic ECG generation, interactive Plotly visualizations, and support for 10 clinical conditions including arrhythmias, heart failure, and hemorrhagic shock.
+Interactive cardiovascular simulator built on the verified Avanzolini et al. (1988) lumped-parameter model with McSharry-inspired synthetic ECG generation. Models the complete closed-loop cardiovascular system with 12 coupled ODEs and supports 10 clinical presets ranging from healthy baseline to ventricular fibrillation.
 
 Developed as part of a research project on cardiac arrhythmia modeling at Washington State University.
 
 Copyright (c) 2025 Artemii Remizov
 
-## Features
-
-- **12-ODE Hemodynamic Model** — Full closed-loop cardiovascular system with time-varying ventricular elastance, four heart valves, and systemic/pulmonary circulation
-- **Synthetic ECG Generation** — PQRST waveform synthesis with condition-specific morphology (wide QRS for VTach, absent P-waves for AFib, chaotic baseline for VFib)
-- **Stochastic R-R Intervals** — Gamma-distributed beat timing for atrial fibrillation, chaotic intervals for ventricular fibrillation
-- **10 Clinical Presets** — Healthy Adult, Ventricular Fibrillation, Ventricular Tachycardia, Atrial Fibrillation, Sinus Tachycardia, Sinus Bradycardia, Systolic Heart Failure, Hypertension, Aortic Stenosis, Hemorrhagic Shock
-- **Comparison Mode** — Overlay two conditions side-by-side with delta metrics
-- **Interactive PV Loops** — Left ventricular pressure-volume diagrams with educational annotations
-- **CSV Export** — Download waveform data, PV loop data, and full simulation results
-- **Real-Time Parameter Control** — Adjust heart rate, contractility, peripheral resistance, and arterial compliance with live results
-
 ## Quick Start
 
 ```bash
-git clone https://github.com/artremizov/Cardiac-Arrhythmia-Simulator.git
-cd Cardiac-Arrhythmia-Simulator
+git clone https://github.com/artremizov/CardiacArrhythmia.git
+cd CardiacArrhythmia
 pip install -r requirements.txt
-streamlit run cardiac_sim.py
+python app.py
 ```
 
-The simulator will open in your browser at `http://localhost:8501`.
+Open your browser to **http://localhost:8050**.
 
 ### Environment Setup (Optional)
 
 Using conda:
 ```bash
-conda create -n cardiac_sim python=3.9
-conda activate cardiac_sim
+conda create -n cardiosim python=3.11
+conda activate cardiosim
 pip install -r requirements.txt
+python app.py
 ```
 
-Or using venv:
+Using venv:
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+venv\Scripts\activate      # Windows
+# source venv/bin/activate  # macOS/Linux
 pip install -r requirements.txt
+python app.py
 ```
+
+## Features
+
+- **12-ODE Closed-Loop Model** — Full cardiovascular system: systemic and pulmonary circulation, four heart valves, time-varying ventricular elastance (Avanzolini 1988)
+- **Synthetic ECG** — PQRST waveform synthesis with condition-specific morphology: wide QRS for VTach, absent P-waves for AFib, chaotic baseline for VFib (McSharry 2003 inspired)
+- **Stochastic R-R Intervals** — Gamma-distributed beat timing for atrial fibrillation, uniform-random for ventricular fibrillation
+- **10 Clinical Presets** — Healthy Adult, Sinus Tachycardia, Sinus Bradycardia, Systolic Heart Failure, Hypertension, Aortic Stenosis, Hemorrhagic Shock, Ventricular Tachycardia, Atrial Fibrillation, Ventricular Fibrillation
+- **6 Clinical Metrics** — Cardiac output, stroke volume, systolic/diastolic BP, mean arterial pressure, pulse pressure — each with normal/warning/danger severity indicators
+- **Comparison Mode** — Run two conditions simultaneously and see percentage deltas on every metric
+- **4 Visualization Panels** — Multi-panel hemodynamic monitor (ECG, arterial, venous, LV volume), PV loops with ESPVR/EDPVR reference lines, full state variable explorer, data export
+- **CSV Export** — Waveform data, PV loop data, and full time-series for any condition
 
 ## Using the Simulator
 
-1. **Select a Preset** — Choose a predefined clinical condition from the sidebar. This automatically sets the sliders to typical values for that state.
-2. **Customize Parameters** — Fine-tune heart rate, contractility, peripheral resistance, and arterial compliance with the sliders. Tooltips explain each parameter.
-3. **Run Simulation** — Click "Run Simulation" to solve the ODEs. Longer durations generally produce more stable results.
-4. **Analyze Results** — View KPIs, hemodynamic waveforms with synthetic ECG, pressure-volume loops, and individual state variables across the tabbed interface. Download CSV data for offline analysis.
-5. **Compare Conditions** — Switch to comparison mode to overlay two clinical states and see percentage deltas across all metrics.
+1. **Select a Preset** — Pick a clinical condition from the left panel; sliders auto-load typical values
+2. **Adjust Parameters** — Fine-tune heart rate (30–400 bpm), contractility (10–160%), peripheral resistance, and arterial compliance
+3. **Run Simulation** — Click **Run Simulation**; the RK45 ODE solver runs server-side
+4. **Analyze Results** — Metric cards show hemodynamic KPIs with severity color coding; tabs give waveforms, PV loop, all variables, and CSV export
+5. **Compare Conditions** — Enable **Compare Two Conditions** to overlay two presets with delta badges on every metric
 
-## Model Description
+## Model
 
-The simulator implements the 12-state lumped-parameter model from Avanzolini et al. (1988). The cardiovascular system is represented as an electrical analog circuit where:
+The simulator implements the 12-state lumped-parameter model from Avanzolini et al. (1988), representing the cardiovascular system as an electrical analog circuit:
 
-- **Resistance (R)** represents viscous blood flow resistance
-- **Compliance (C)** represents elastic vessel wall properties
-- **Inertance (L)** represents blood inertia
+- **Resistance (R)** — viscous blood flow resistance
+- **Compliance (C)** — elastic vessel wall properties
+- **Inertance (L)** — blood inertia
 
-Cardiac contraction is driven by a time-varying activation function that modulates ventricular elastance between diastolic and systolic values across each cardiac cycle.
+Ventricular contraction is driven by a time-varying activation function `A(t)` that modulates elastance between diastolic and systolic values each cycle. Four diode-like valves (aortic, mitral, tricuspid, pulmonary) open and close based on pressure gradients.
+
+**Solver:** `scipy.integrate.solve_ivp`, RK45, rtol=1e-5, atol=1e-8
 
 ### State Variables
 
@@ -81,37 +86,52 @@ Cardiac contraction is driven by a time-varying activation function that modulat
 
 ### Validation
 
-The baseline healthy adult simulation produces:
-- Cardiac Output: ~5.88 L/min (literature: 4.0-8.0 L/min)
-- Systolic Pressure: ~115 mmHg (literature: 90-140 mmHg)
-- Diastolic Pressure: ~70 mmHg (literature: 60-90 mmHg)
+Healthy adult baseline:
 
-These values are consistent with the original Avanzolini paper and standard physiological references.
+| Metric | Simulated | Literature |
+|--------|-----------|------------|
+| Cardiac Output | ~4.6 L/min | 4.0–8.0 L/min |
+| Systolic Pressure | ~113 mmHg | 90–140 mmHg |
+| Diastolic Pressure | ~68 mmHg | 60–90 mmHg |
+
+Consistent with the original Avanzolini paper and standard physiological references.
 
 ## File Structure
 
 ```
-├── cardiac_sim.py        # Main Streamlit application (v2.0)
-├── run_simulation.py     # Standalone baseline validation script
+├── app.py                # Dash web application — layout and callbacks
+├── model.py              # ODE physics, clinical presets, parameter builder
+├── ecg.py                # Synthetic ECG and R-R interval generation
+├── metrics.py            # Hemodynamic analysis and simulation runner
+├── plots.py              # Plotly figure factories
+├── assets/
+│   └── custom.css        # Dark theme overrides
+├── gen_paper_figures.py  # Standalone publication figure generator
 ├── requirements.txt      # Python dependencies
 ├── LICENSE               # CC BY-NC 4.0
 └── README.md
 ```
 
+## Dependencies
+
+```
+dash>=2.14.0
+dash-bootstrap-components>=1.5.0
+plotly>=5.15.0
+numpy>=1.24.0
+scipy>=1.10.0
+pandas>=2.0.0
+```
+
 ## Citation
 
-If you use this simulator or code in your research or educational work, please cite the associated arXiv paper:
+If you use this simulator in research or educational work, please cite:
 
-> Remizov, A., & Lapin, S. (2025). Quantifying the Hemodynamic Effects of Ventricular Fibrillation using a Verified Computational Model. *arXiv preprint arXiv:2511.00358*.
-
-Alternatively, you can cite the GitHub repository directly:
-
-> Remizov, A. (2025). Cardiac-Arrhythmia-Simulator (Version 2.0) [Software]. Available from https://github.com/artremizov/Cardiac-Arrhythmia-Simulator
-
-## Model Reference
-
-Avanzolini, G., Barbini, P., Cappello, A., & Cevenini, G. (1988). CADCS simulation of the closed-loop cardiovascular system. *International Journal of Bio-Medical Computing*, 22(1), 39-49.
+- Remizov, A., & Lapin, S. (YYYY). Quantifying the Hemodynamic Effects of Ventricular Fibrillation using a Verified Computational Model. *arXiv preprint arXiv:XXXX.XXXXX*.
+- Avanzolini, G., Barbini, P., Cappello, A., & Cevese, A. (1988). CADCS simulation of the closed-loop cardiovascular system. *International Journal of Bio-Medical Computing*, 22(1), 39–49.
+- McSharry, P. E., Clifford, G. D., Tarassenko, L., & Smith, L. A. (2003). A dynamical model for generating synthetic electrocardiogram signals. *IEEE Transactions on Biomedical Engineering*, 50(3), 289–294.
 
 ## License
 
-Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0). See the LICENSE file for details. This software may not be used for commercial purposes.
+Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0).
+See [LICENSE](LICENSE) for details. This software may not be used for commercial purposes.

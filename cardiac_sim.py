@@ -22,6 +22,8 @@ st.set_page_config(
     page_title="CardioSim — Cardiovascular Simulator",
 )
 
+# FIXED: Replaced hardcoded #f8fafc backgrounds and specific dark text colors 
+# with Streamlit's native CSS variables so it adapts to Dark/Light mode automatically.
 CUSTOM_CSS = """
 <style>
     /* ── Global ── */
@@ -29,40 +31,43 @@ CUSTOM_CSS = """
 
     /* ── Metric cards ── */
     .metric-card {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        border: 1px solid #0f3460;
-        border-radius: 12px;
-        padding: 1.1rem 1.2rem;
+        background: var(--secondary-background-color);
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        border-radius: 10px;
+        padding: 1rem 1.1rem;
         text-align: center;
-        transition: transform 0.2s ease;
+        transition: box-shadow 0.2s ease;
     }
-    .metric-card:hover { transform: translateY(-2px); }
+    .metric-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
     .metric-label {
-        color: #8892b0;
-        font-size: 0.78rem;
+        color: var(--text-color);
+        opacity: 0.8;
+        font-size: 0.75rem;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         margin-bottom: 0.25rem;
     }
     .metric-value {
-        font-size: 1.75rem;
+        font-size: 1.7rem;
         font-weight: 700;
         margin-bottom: 0.1rem;
         font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
     }
     .metric-unit {
-        color: #8892b0;
+        color: var(--text-color);
+        opacity: 0.6;
         font-size: 0.72rem;
     }
-    .metric-normal { color: #64ffda; }
-    .metric-warning { color: #ffd93d; }
-    .metric-danger { color: #ff6b6b; }
+    .metric-normal { color: #059669; }
+    .metric-warning { color: #d97706; }
+    .metric-danger { color: #dc2626; }
 
     /* ── Preset cards ── */
     .preset-info {
-        background: #1a1a2e;
-        border-left: 3px solid #0f3460;
+        background: var(--secondary-background-color);
+        color: var(--text-color);
+        border-left: 3px solid var(--primary-color);
         border-radius: 0 8px 8px 0;
         padding: 0.8rem 1rem;
         margin: 0.5rem 0;
@@ -76,9 +81,9 @@ CUSTOM_CSS = """
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        color: #64ffda;
+        color: var(--primary-color);
         padding-bottom: 0.4rem;
-        border-bottom: 1px solid #233554;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.2);
         margin-bottom: 0.8rem;
     }
 
@@ -90,8 +95,8 @@ CUSTOM_CSS = """
         font-size: 0.7rem;
         font-weight: 600;
     }
-    .badge-up { background: rgba(255, 107, 107, 0.15); color: #ff6b6b; }
-    .badge-down { background: rgba(100, 255, 218, 0.15); color: #64ffda; }
+    .badge-up { background: rgba(220, 38, 38, 0.1); color: #dc2626; }
+    .badge-down { background: rgba(5, 150, 105, 0.1); color: #059669; }
 
     /* ── Hide Streamlit branding ── */
     #MainMenu {visibility: hidden;}
@@ -385,24 +390,37 @@ def generate_synthetic_ecg(t, p, rr_intervals=None, preset_name="Healthy Adult")
 # ANALYSIS FUNCTIONS
 # ═══════════════════════════════════════════════════════════
 def calculate_metrics(t, X, p, rr_intervals=None):
-    """Calculate hemodynamic metrics from the last stable cardiac cycle."""
+    """Calculate hemodynamic metrics from the last stable cardiac cycle.
+    
+    For regular rhythms, snaps the extraction window to exact cycle
+    boundaries so PV loops trace a clean single-beat path.
+    For stochastic rhythms (AF, VF), averages metrics over multiple
+    beats and provides a multi-beat PV trajectory.
+    """
     n = len(t)
     LVOF = np.zeros(n)
     LVP = np.zeros(n)
     Tc = p["Tc"]
 
+    # Pre-compute cumulative beat boundaries for stochastic rhythms
+    beat_boundaries = []
+
+    if rr_intervals is not None and len(rr_intervals) > 0:
+        cum = 0.0
+        beat_boundaries.append(0.0)
+        for rr in rr_intervals:
+            cum += rr
+            beat_boundaries.append(cum)
+            if cum > t[-1] + 1.0:
+                break
+        beat_boundaries = np.array(beat_boundaries)
+
     for i in range(n):
         if rr_intervals is not None and len(rr_intervals) > 0:
-            cum = 0.0
-            bi = 0
-            while bi < len(rr_intervals) and cum + rr_intervals[bi] <= t[i]:
-                cum += rr_intervals[bi]
-                bi += 1
-            if bi < len(rr_intervals):
-                Tc_local = rr_intervals[bi]
-            else:
-                Tc_local = Tc
-            Tm = t[i] - cum
+            bi = np.searchsorted(beat_boundaries, t[i], side='right') - 1
+            bi = max(0, min(bi, len(rr_intervals) - 1))
+            Tc_local = rr_intervals[bi]
+            Tm = t[i] - beat_boundaries[bi]
         else:
             Tc_local = Tc
             Tm = t[i] % Tc_local
@@ -416,24 +434,77 @@ def calculate_metrics(t, X, p, rr_intervals=None):
         LVOF[i] = Z1 * S1 / (p["RL"] + p["R1"])
         LVP[i] = UL + EL * X[i, 11] - p["RL"] * LVOF[i]
 
-    # Extract last stable beat
+    # ── Extract beat(s) aligned to actual cycle boundaries ──
     end_t = t[-1]
-    effective_tc = np.mean(rr_intervals[-10:]) if rr_intervals is not None else Tc
-    if end_t < 2 * effective_tc:
-        return dict(co=0, sv=0, sys=0, dia=0, map_val=0, pp=0,
-                    lv_vol=np.array([]), lvp=np.array([]),
-                    lvof=LVOF, lvp_full=LVP)
+    _trapz = np.trapezoid if hasattr(np, 'trapezoid') else np.trapz
+    empty = dict(co=0, sv=0, sys=0, dia=0, map_val=0, pp=0,
+                 lv_vol=np.array([]), lvp=np.array([]),
+                 lvof=LVOF, lvp_full=LVP)
 
-    beat_start = max(t[0], end_t - 2 * effective_tc)
-    beat_end = end_t - effective_tc
+    if rr_intervals is not None and len(rr_intervals) > 0:
+        # Stochastic rhythm: average metrics over the last ~8 complete beats
+        # and provide a single representative beat for the PV loop
+        valid = beat_boundaries[beat_boundaries <= end_t]
+        if len(valid) < 4:
+            return empty
+
+        # Use last N complete beats for metric averaging
+        n_avg_beats = min(8, len(valid) - 2)
+        avg_start_idx = len(valid) - 1 - n_avg_beats
+        beat_svs = []
+        beat_sys = []
+        beat_dia = []
+        beat_ranges = []  # (start, end, idx_array) for each beat
+        for b in range(avg_start_idx, len(valid) - 1):
+            bs = valid[b]
+            be = valid[b + 1]
+            b_idx = np.where((t >= bs) & (t < be))[0]
+            if len(b_idx) < 2:
+                continue
+            sv_b = _trapz(LVOF[b_idx], t[b_idx])
+            beat_svs.append(sv_b)
+            beat_sys.append(np.max(X[b_idx, 0]))
+            beat_dia.append(np.min(X[b_idx, 0]))
+            beat_ranges.append(b_idx)
+
+        if len(beat_svs) == 0:
+            return empty
+
+        avg_sv = np.mean(beat_svs)
+        avg_sys = np.mean(beat_sys)
+        avg_dia = np.mean(beat_dia)
+        avg_rr = np.mean(np.diff(valid[avg_start_idx:]))
+        avg_hr = 60.0 / avg_rr
+        avg_co = avg_sv * avg_hr / 1000.0
+
+        # For PV loop: pick the single beat closest to median SV
+        # This gives one clean representative loop, not overlapping multiples
+        median_sv = np.median(beat_svs)
+        best_beat = np.argmin(np.abs(np.array(beat_svs) - median_sv))
+        pv_idx = beat_ranges[best_beat]
+
+        return dict(
+            co=avg_co, sv=avg_sv, sys=avg_sys, dia=avg_dia,
+            map_val=avg_dia + (avg_sys - avg_dia) / 3.0,
+            pp=avg_sys - avg_dia,
+            lv_vol=X[pv_idx, 11], lvp=LVP[pv_idx],
+            lvof=LVOF, lvp_full=LVP,
+        )
+    else:
+        # Regular rhythm: snap to exact cycle boundaries
+        n_cycles = int(end_t / Tc)
+        if n_cycles < 3:
+            return empty
+        # Use second-to-last complete cycle (well settled)
+        beat_start = (n_cycles - 1) * Tc
+        beat_end = n_cycles * Tc
+        effective_tc = Tc
+
     idx = np.where((t >= beat_start) & (t < beat_end))[0]
     if len(idx) <= 1:
-        return dict(co=0, sv=0, sys=0, dia=0, map_val=0, pp=0,
-                    lv_vol=np.array([]), lvp=np.array([]),
-                    lvof=LVOF, lvp_full=LVP)
+        return empty
 
     t_beat = t[idx]
-    _trapz = np.trapezoid if hasattr(np, 'trapezoid') else np.trapz
     sv = _trapz(LVOF[idx], t_beat)
     hr = 60.0 / effective_tc
     co = sv * hr / 1000.0
@@ -479,91 +550,137 @@ def run_sim(params, duration, preset_name):
 # PLOTLY VISUALIZATION
 # ═══════════════════════════════════════════════════════════
 COLORS = {
-    "aortic": "#ff6b6b",
-    "lvp": "#ffd93d",
-    "venous": "#48bfe3",
-    "pulm": "#64dfdf",
-    "ecg": "#64ffda",
-    "ecg2": "#ff9f43",
-    "volume": "#a29bfe",
-    "pv": "#6c5ce7",
-    "grid": "rgba(255,255,255,0.06)",
+    # Single-mode signal colors (muted professional tones)
+    "aortic": "#dc2626",      # red
+    "lvp": "#f59e0b",         # amber (dotted, for LV pressure overlay)
+    "venous": "#2563eb",      # blue
+    "pulm": "#7c3aed",        # purple
+    "ecg": "#059669",         # emerald
+    "volume": "#6366f1",      # indigo
+    # Comparison colors
+    "comp1": "#1e40af",       # navy blue  (condition 1)
+    "comp2": "#b91c1c",       # dark red   (condition 2)
+    "comp1_dim": "rgba(30,64,175,0.45)",
+    "comp2_dim": "rgba(185,28,28,0.45)",
+    # PV loop
+    "pv": "#1e40af",
+    "espvr": "#94a3b8",       # slate gray for reference lines
+    "edpvr": "#94a3b8",
+    # Layout (these are mostly for plots, so we can keep them neutral/adaptive if we want, but letting them stay as is since Plotly has its own background)
+    "grid": "rgba(128,128,128,0.2)",
     "bg": "rgba(0,0,0,0)",
-    "text": "#ccd6f6",
-    "muted": "#8892b0",
+    "plotbg": "rgba(0,0,0,0)",
+    "text": "#64748b",
+    "muted": "#64748b",
 }
 
 PLOT_LAYOUT = dict(
     paper_bgcolor=COLORS["bg"],
-    plot_bgcolor="#0a192f",
+    plot_bgcolor=COLORS["plotbg"],
     font=dict(color=COLORS["text"], family="Inter, system-ui, sans-serif", size=12),
     margin=dict(l=55, r=20, t=35, b=40),
     hovermode="x unified",
     legend=dict(
         orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
-        bgcolor="rgba(10,25,47,0.7)", borderwidth=0, font=dict(size=11),
+        bgcolor="rgba(0,0,0,0)", bordercolor="rgba(128,128,128,0.2)", borderwidth=1,
+        font=dict(size=11),
     ),
 )
 
 
-def make_monitor_plot(result, t_range):
-    """Create the main patient-monitor-style multi-panel plot."""
-    t = result["t"]
-    X = result["X"]
-    ecg = result["ecg"]
-    metrics = result["metrics"]
-    idx = np.where((t >= t_range[0]) & (t <= t_range[1]))[0]
-    ti = t[idx]
+def make_monitor_plot(result, t_range, result2=None):
+    """Create the main multi-panel plot with professional styling.
+    
+    Single mode: distinct colors per signal type.
+    Comparison mode: navy blue (condition 1) vs dark red (condition 2)
+    across ALL panels for instant visual identification.
+    """
+    has_comp = result2 is not None
 
     fig = make_subplots(
         rows=4, cols=1, shared_xaxes=True,
         vertical_spacing=0.06,
         row_heights=[0.22, 0.30, 0.22, 0.26],
-        subplot_titles=["ECG  (Lead II)", "Arterial Pressures", "Venous & Pulmonary", "Left Ventricular Volume"],
+        subplot_titles=["ECG  (Lead II)", "Arterial Pressures",
+                        "Venous & Pulmonary", "Left Ventricular Volume"],
     )
 
-    # Row 1 — ECG
-    fig.add_trace(go.Scatter(
-        x=ti, y=ecg[idx], mode='lines', name='ECG',
-        line=dict(color=COLORS["ecg"], width=1.5),
-        hovertemplate='%{y:.2f} mV<extra>ECG</extra>',
-    ), row=1, col=1)
+    def _add_traces(res, is_primary):
+        t = res["t"]; X = res["X"]; ecg = res["ecg"]; m = res["metrics"]
+        idx = np.where((t >= t_range[0]) & (t <= t_range[1]))[0]
+        ti = t[idx]
+        label = res["preset"]
 
-    # Row 2 — Aortic + LV Pressure
-    fig.add_trace(go.Scatter(
-        x=ti, y=X[idx, 0], mode='lines', name='Aortic Pressure',
-        line=dict(color=COLORS["aortic"], width=2),
-        hovertemplate='%{y:.1f} mmHg<extra>Aortic</extra>',
-    ), row=2, col=1)
-    fig.add_trace(go.Scatter(
-        x=ti, y=metrics["lvp_full"][idx], mode='lines', name='LV Pressure',
-        line=dict(color=COLORS["lvp"], width=1.5, dash='dot'),
-        hovertemplate='%{y:.1f} mmHg<extra>LV</extra>',
-    ), row=2, col=1)
+        if has_comp:
+            c_main = COLORS["comp1"] if is_primary else COLORS["comp2"]
+            c_dim = COLORS["comp1_dim"] if is_primary else COLORS["comp2_dim"]
 
-    # Row 3 — Venous + Pulmonary
-    fig.add_trace(go.Scatter(
-        x=ti, y=X[idx, 4], mode='lines', name='Systemic Venous',
-        line=dict(color=COLORS["venous"], width=1.5),
-        hovertemplate='%{y:.1f} mmHg<extra>Venous</extra>',
-    ), row=3, col=1)
-    fig.add_trace(go.Scatter(
-        x=ti, y=X[idx, 6], mode='lines', name='Pulmonary Artery',
-        line=dict(color=COLORS["pulm"], width=1.5),
-        hovertemplate='%{y:.1f} mmHg<extra>Pulmonary</extra>',
-    ), row=3, col=1)
+            fig.add_trace(go.Scatter(
+                x=ti, y=ecg[idx], mode='lines',
+                name=label, legendgroup=label, showlegend=True,
+                line=dict(color=c_main, width=1.5),
+            ), row=1, col=1)
+            fig.add_trace(go.Scatter(
+                x=ti, y=X[idx, 0], mode='lines',
+                name=f'Aortic ({label})', legendgroup=label, showlegend=False,
+                line=dict(color=c_main, width=2),
+            ), row=2, col=1)
+            fig.add_trace(go.Scatter(
+                x=ti, y=m["lvp_full"][idx], mode='lines',
+                name=f'LV Pres ({label})', legendgroup=label, showlegend=False,
+                line=dict(color=c_dim, width=1.2),
+            ), row=2, col=1)
+            fig.add_trace(go.Scatter(
+                x=ti, y=X[idx, 4], mode='lines',
+                name=f'Venous ({label})', legendgroup=label, showlegend=False,
+                line=dict(color=c_main, width=1.5),
+            ), row=3, col=1)
+            fig.add_trace(go.Scatter(
+                x=ti, y=X[idx, 6], mode='lines',
+                name=f'Pulm ({label})', legendgroup=label, showlegend=False,
+                line=dict(color=c_dim, width=1.3),
+            ), row=3, col=1)
+            fig.add_trace(go.Scatter(
+                x=ti, y=X[idx, 11], mode='lines',
+                name=f'LV Vol ({label})', legendgroup=label, showlegend=False,
+                line=dict(color=c_main, width=1.5),
+                fill='tozeroy' if is_primary else None,
+                fillcolor='rgba(30,64,175,0.06)' if is_primary else None,
+            ), row=4, col=1)
+        else:
+            fig.add_trace(go.Scatter(
+                x=ti, y=ecg[idx], mode='lines', name='ECG',
+                line=dict(color=COLORS["ecg"], width=1.5),
+            ), row=1, col=1)
+            fig.add_trace(go.Scatter(
+                x=ti, y=X[idx, 0], mode='lines', name='Aortic Pressure',
+                line=dict(color=COLORS["aortic"], width=2),
+            ), row=2, col=1)
+            fig.add_trace(go.Scatter(
+                x=ti, y=m["lvp_full"][idx], mode='lines', name='LV Pressure',
+                line=dict(color=COLORS["lvp"], width=1.2, dash='dot'),
+            ), row=2, col=1)
+            fig.add_trace(go.Scatter(
+                x=ti, y=X[idx, 4], mode='lines', name='Systemic Venous',
+                line=dict(color=COLORS["venous"], width=1.5),
+            ), row=3, col=1)
+            fig.add_trace(go.Scatter(
+                x=ti, y=X[idx, 6], mode='lines', name='Pulmonary Artery',
+                line=dict(color=COLORS["pulm"], width=1.5),
+            ), row=3, col=1)
+            fig.add_trace(go.Scatter(
+                x=ti, y=X[idx, 11], mode='lines', name='LV Volume',
+                line=dict(color=COLORS["volume"], width=1.8),
+                fill='tozeroy', fillcolor='rgba(99,102,241,0.08)',
+            ), row=4, col=1)
 
-    # Row 4 — LV Volume
-    fig.add_trace(go.Scatter(
-        x=ti, y=X[idx, 11], mode='lines', name='LV Volume',
-        line=dict(color=COLORS["volume"], width=2),
-        fill='tozeroy', fillcolor='rgba(162,155,254,0.12)',
-        hovertemplate='%{y:.1f} cm³<extra>LV Vol</extra>',
-    ), row=4, col=1)
+    _add_traces(result, is_primary=True)
+    if has_comp:
+        _add_traces(result2, is_primary=False)
 
     fig.update_layout(
         **PLOT_LAYOUT,
-        height=680,
+        height=700,
         showlegend=True,
     )
     fig.update_xaxes(
@@ -572,103 +689,175 @@ def make_monitor_plot(result, t_range):
         range=[t_range[0], t_range[1]],
     )
     for row in range(1, 5):
-        fig.update_yaxes(showgrid=True, gridcolor=COLORS["grid"], gridwidth=1, row=row, col=1)
+        fig.update_yaxes(showgrid=True, gridcolor=COLORS["grid"], gridwidth=1,
+                         row=row, col=1)
     fig.update_yaxes(title_text="mV", row=1, col=1)
     fig.update_yaxes(title_text="mmHg", row=2, col=1)
     fig.update_yaxes(title_text="mmHg", row=3, col=1)
     fig.update_yaxes(title_text="cm³", row=4, col=1)
-
-    # Style subtitle annotations
     for ann in fig['layout']['annotations']:
         ann['font'] = dict(size=12, color=COLORS["muted"])
-
     return fig
 
 
 def make_pv_loop(result, result2=None):
-    """Create PV loop plot, optionally overlaid with a second condition."""
-    m = result["metrics"]
+    """Create a professional PV loop with ESPVR/EDPVR reference lines,
+    phase markers (ESV, EDV), and filled loop area."""
     fig = go.Figure()
+    has_comp = result2 is not None
 
-    if len(m["lv_vol"]) > 0:
+    def _add_loop(res, is_primary):
+        m = res["metrics"]
+        if len(m["lv_vol"]) < 3:
+            return
+        vol = m["lv_vol"]
+        pres = m["lvp"]
+        name = res["preset"]
+        esv = np.min(vol)
+        edv = np.max(vol)
+
+        # End-systolic point: where volume is near minimum AND pressure
+        # is still high (upper-left corner, not the bottom after relaxation)
+        near_esv = np.where(vol < esv + 0.02 * (edv - esv))[0]
+        esp_idx = near_esv[np.argmax(pres[near_esv])]
+        esp = pres[esp_idx]
+
+        # End-diastolic point: where volume is near maximum
+        near_edv = np.where(vol > edv - 0.02 * (edv - esv))[0]
+        edp_idx = near_edv[np.argmax(pres[near_edv])]
+        edp = pres[edp_idx]
+
+        # Close loop
+        vol_c = np.append(vol, vol[0])
+        pres_c = np.append(pres, pres[0])
+
+        # Pick colors
+        if has_comp:
+            color = COLORS["comp1"] if is_primary else COLORS["comp2"]
+            fill_color = "rgba(30,64,175,0.10)" if is_primary else "rgba(185,28,28,0.10)"
+        else:
+            color = COLORS["pv"]
+            fill_color = "rgba(30,64,175,0.08)"
+
+        # Filled loop area (stroke work)
         fig.add_trace(go.Scatter(
-            x=m["lv_vol"], y=m["lvp"], mode='lines', name=result["preset"],
-            line=dict(color=COLORS["pv"], width=2.5),
-            fill='toself', fillcolor='rgba(108,92,231,0.08)',
+            x=vol_c, y=pres_c, mode='lines', name=name,
+            line=dict(color=color, width=2.5),
+            fill='toself', fillcolor=fill_color,
         ))
 
-    if result2 is not None:
-        m2 = result2["metrics"]
-        if len(m2["lv_vol"]) > 0:
+        # ESV and EDV markers
+        fig.add_trace(go.Scatter(
+            x=[esv], y=[esp], mode='markers+text',
+            marker=dict(size=8, color=color, symbol='circle'),
+            text=['ESV'], textposition='top left',
+            textfont=dict(size=10, color=color),
+            showlegend=False, hoverinfo='skip',
+        ))
+        fig.add_trace(go.Scatter(
+            x=[edv], y=[edp], mode='markers+text',
+            marker=dict(size=8, color=color, symbol='circle'),
+            text=['EDV'], textposition='bottom right',
+            textfont=dict(size=10, color=color),
+            showlegend=False, hoverinfo='skip',
+        ))
+
+        # ESPVR line (through end-systolic point, clipped to visible range)
+        if is_primary:
+            v0 = 10  # dead volume estimate
+            ees = esp / (esv - v0) if esv > v0 else 1.0
+            # Clip ESPVR to 1.3x peak loop pressure
+            p_max_line = np.max(pres) * 1.3
+            v_max_line = v0 + p_max_line / ees
+            espvr_v = np.array([v0, min(v_max_line, edv + 5)])
+            espvr_p = ees * (espvr_v - v0)
             fig.add_trace(go.Scatter(
-                x=m2["lv_vol"], y=m2["lvp"], mode='lines', name=result2["preset"],
-                line=dict(color=COLORS["ecg2"], width=2.5, dash='dash'),
-                fill='toself', fillcolor='rgba(255,159,67,0.06)',
+                x=espvr_v, y=espvr_p, mode='lines',
+                name='ESPVR', line=dict(color=COLORS["espvr"], width=1.2, dash='dash'),
+                showlegend=not has_comp,
             ))
+
+            # EDPVR curve (P = ELD * V, the diastolic filling curve)
+            eld = res["params"]["ELD"]
+            edpvr_v = np.linspace(max(v0, esv - 5), edv + 5, 50)
+            edpvr_p = eld * edpvr_v
+            fig.add_trace(go.Scatter(
+                x=edpvr_v, y=edpvr_p, mode='lines',
+                name='EDPVR', line=dict(color=COLORS["edpvr"], width=1.2, dash='dot'),
+                showlegend=not has_comp,
+            ))
+
+    _add_loop(result, is_primary=True)
+    if has_comp:
+        _add_loop(result2, is_primary=False)
+
+    # Clip y-axis to reasonable range
+    all_pres = result["metrics"]["lvp"]
+    y_max = np.max(all_pres) * 1.15
+    if has_comp and len(result2["metrics"]["lvp"]) > 0:
+        y_max = max(y_max, np.max(result2["metrics"]["lvp"]) * 1.15)
 
     fig.update_layout(
         **PLOT_LAYOUT,
-        height=420,
+        height=480,
         xaxis_title="LV Volume (cm³)",
         yaxis_title="LV Pressure (mmHg)",
+        yaxis=dict(range=[0, y_max]),
     )
     fig.update_xaxes(showgrid=True, gridcolor=COLORS["grid"])
     fig.update_yaxes(showgrid=True, gridcolor=COLORS["grid"])
-
     return fig
 
 
-def make_comparison_waveform(r1, r2, t_range):
-    """Overlay two simulations on the same axes for comparison."""
+def make_all_variables(result, t_range, var_select, result2=None):
+    """Plot selected state variables. Comparison mode uses navy/red."""
+    # Single mode: varied colors per variable
+    palette_single = ["#dc2626", "#d97706", "#059669", "#2563eb", "#7c3aed",
+                      "#db2777", "#4f46e5", "#0891b2", "#ea580c", "#ca8a04",
+                      "#475569", "#0284c7"]
+
     fig = make_subplots(
-        rows=3, cols=1, shared_xaxes=True,
-        vertical_spacing=0.08,
-        row_heights=[0.35, 0.35, 0.30],
-        subplot_titles=["ECG  (Lead II)", "Aortic Pressure", "Left Ventricular Volume"],
+        rows=len(var_select), cols=1, shared_xaxes=True,
+        vertical_spacing=0.05,
+        subplot_titles=[f"X{i+1}: {STATE_LABELS[i][0]}" for i in var_select],
     )
 
-    for result, color_set, dash in [
-        (r1, (COLORS["ecg"], COLORS["aortic"], COLORS["volume"]), None),
-        (r2, (COLORS["ecg2"], "#ff9f43", "#fdcb6e"), "dash"),
-    ]:
-        t = result["t"]
-        X = result["X"]
-        ecg = result["ecg"]
+    has_comp = result2 is not None
+
+    def _add(res, is_primary):
+        t = res["t"]; X = res["X"]
         idx = np.where((t >= t_range[0]) & (t <= t_range[1]))[0]
-        ti = t[idx]
-        label = result["preset"]
-        ls = dict(width=1.8) if dash is None else dict(width=1.8, dash=dash)
+        label = res["preset"]
+        if has_comp:
+            color = COLORS["comp1"] if is_primary else COLORS["comp2"]
+        for row, vi in enumerate(var_select):
+            c = color if has_comp else palette_single[vi]
+            fig.add_trace(go.Scatter(
+                x=t[idx], y=X[idx, vi], mode='lines',
+                name=label if has_comp else STATE_LABELS[vi][0],
+                line=dict(color=c, width=1.5),
+                showlegend=(row == 0) if has_comp else False,
+                legendgroup=label if has_comp else None,
+            ), row=row + 1, col=1)
 
-        fig.add_trace(go.Scatter(
-            x=ti, y=ecg[idx], mode='lines', name=f'{label}',
-            line={**ls, "color": color_set[0]}, legendgroup=label,
-            showlegend=True,
-        ), row=1, col=1)
-        fig.add_trace(go.Scatter(
-            x=ti, y=X[idx, 0], mode='lines', name=f'{label}',
-            line={**ls, "color": color_set[1]}, legendgroup=label,
-            showlegend=False,
-        ), row=2, col=1)
-        fig.add_trace(go.Scatter(
-            x=ti, y=X[idx, 11], mode='lines', name=f'{label}',
-            line={**ls, "color": color_set[2]}, legendgroup=label,
-            showlegend=False,
-        ), row=3, col=1)
+    _add(result, is_primary=True)
+    if has_comp:
+        _add(result2, is_primary=False)
 
-    fig.update_layout(**PLOT_LAYOUT, height=580)
-    fig.update_xaxes(
-        showgrid=True, gridcolor=COLORS["grid"],
-        title_text="Time (s)", row=3, col=1,
-        range=[t_range[0], t_range[1]],
+    for row, vi in enumerate(var_select):
+        fig.update_yaxes(title_text=STATE_LABELS[vi][1], row=row + 1, col=1)
+
+    fig.update_layout(
+        **PLOT_LAYOUT,
+        height=200 * len(var_select),
+        showlegend=has_comp,
     )
-    for row in range(1, 4):
+    for row in range(1, len(var_select) + 1):
+        fig.update_xaxes(showgrid=True, gridcolor=COLORS["grid"], row=row, col=1)
         fig.update_yaxes(showgrid=True, gridcolor=COLORS["grid"], row=row, col=1)
-    fig.update_yaxes(title_text="mV", row=1, col=1)
-    fig.update_yaxes(title_text="mmHg", row=2, col=1)
-    fig.update_yaxes(title_text="cm³", row=3, col=1)
+    fig.update_xaxes(title_text="Time (s)", row=len(var_select), col=1)
     for ann in fig['layout']['annotations']:
-        ann['font'] = dict(size=12, color=COLORS["muted"])
-
+        ann['font'] = dict(size=11, color=COLORS["muted"])
     return fig
 
 
@@ -862,7 +1051,7 @@ if result is not None:
                 arrow = "↑" if delta > 0 else "↓"
                 badge = "badge-up" if delta > 0 else "badge-down"
                 col.markdown(
-                    f'<div style="text-align:center; font-size:0.78rem; color:{COLORS["muted"]}">'
+                    f'<div style="text-align:center; font-size:0.78rem; color:var(--text-color); opacity:0.8;">'
                     f'{label}<br>'
                     f'<span class="comparison-badge {badge}">{arrow} {abs(delta):.1f}%</span> vs {result2["preset"]}'
                     f'</div>',
@@ -871,30 +1060,17 @@ if result is not None:
 
     st.markdown("---")
 
-    # ── Tabs ──
-    if result2 is not None:
-        tab_labels = ["Monitor", "Comparison", "PV Loop", "All Variables", "Export"]
-    else:
-        tab_labels = ["Monitor", "PV Loop", "All Variables", "Export"]
-
+    # ── Tabs — same tabs always, comparison is overlaid everywhere ──
+    tab_labels = ["Monitor", "PV Loop", "All Variables", "Export"]
     tabs = st.tabs(tab_labels)
-    tab_idx = 0
 
     # ── Monitor Tab ──
-    with tabs[tab_idx]:
-        fig_monitor = make_monitor_plot(result, t_range)
+    with tabs[0]:
+        fig_monitor = make_monitor_plot(result, t_range, result2)
         st.plotly_chart(fig_monitor, use_container_width=True, config={"displayModeBar": False})
-    tab_idx += 1
-
-    # ── Comparison Tab ──
-    if result2 is not None:
-        with tabs[tab_idx]:
-            fig_comp = make_comparison_waveform(result, result2, t_range)
-            st.plotly_chart(fig_comp, use_container_width=True, config={"displayModeBar": False})
-        tab_idx += 1
 
     # ── PV Loop Tab ──
-    with tabs[tab_idx]:
+    with tabs[1]:
         col_pv1, col_pv2 = st.columns([3, 2])
         with col_pv1:
             fig_pv = make_pv_loop(result, result2)
@@ -902,32 +1078,33 @@ if result is not None:
         with col_pv2:
             st.markdown("**Understanding the PV Loop**")
             st.markdown("""
-            The pressure-volume loop traces one complete cardiac cycle:
+            The loop traces one cardiac cycle **counter-clockwise**:
 
-            **Bottom-right → Bottom-left:** Isovolumic contraction. 
-            The mitral valve closes, LV pressure rises rapidly at constant volume.
+            **① Bottom-right → Top-right:** Isovolumic contraction. 
+            Both valves closed, pressure rises at constant volume.
 
-            **Bottom-left → Top-left:** Ejection phase.
-            The aortic valve opens, blood is expelled, and volume decreases.
+            **② Top-right → Top-left:** Ejection phase.
+            Aortic valve opens, blood expelled, volume decreases.
 
-            **Top-left → Top-right:** Isovolumic relaxation.
-            The aortic valve closes, LV pressure falls at constant volume.
+            **③ Top-left → Bottom-left:** Isovolumic relaxation.
+            Aortic valve closes, pressure falls at constant volume.
 
-            **Top-right → Bottom-right:** Filling phase.
-            The mitral valve opens and the ventricle fills with blood.
+            **④ Bottom-left → Bottom-right:** Filling phase.
+            Mitral valve opens, ventricle fills with blood.
 
-            The **area enclosed** by the loop represents the stroke work — 
-            the mechanical energy delivered by the ventricle per beat.
+            **Reference lines:** The dashed **ESPVR** line represents
+            contractility (steeper = stronger). The dotted **EDPVR**
+            curve shows ventricular compliance. The loop **area**
+            equals stroke work (mechanical energy per beat).
             """)
             if result2 is not None:
                 st.markdown(f"""
-                The dashed loop shows **{result2['preset']}** for comparison. 
-                A smaller, shifted loop indicates reduced stroke work.
+                The second loop shows **{result2['preset']}** for comparison. 
+                A smaller loop indicates reduced stroke work.
                 """)
-    tab_idx += 1
 
     # ── All Variables Tab ──
-    with tabs[tab_idx]:
+    with tabs[2]:
         var_select = st.multiselect(
             "Select variables to plot",
             options=list(range(12)),
@@ -935,53 +1112,24 @@ if result is not None:
             format_func=lambda i: f"X{i+1}: {STATE_LABELS[i][0]}",
         )
         if var_select:
-            fig_all = make_subplots(
-                rows=len(var_select), cols=1, shared_xaxes=True,
-                vertical_spacing=0.05,
-                subplot_titles=[f"X{i+1}: {STATE_LABELS[i][0]}" for i in var_select],
-            )
-            palette = ["#ff6b6b", "#ffd93d", "#64ffda", "#48bfe3", "#a29bfe",
-                       "#fd79a8", "#6c5ce7", "#00cec9", "#e17055", "#fdcb6e",
-                       "#636e72", "#74b9ff"]
-            t = result["t"]
-            X = result["X"]
-            idx = np.where((t >= t_range[0]) & (t <= t_range[1]))[0]
-            for row, vi in enumerate(var_select):
-                fig_all.add_trace(go.Scatter(
-                    x=t[idx], y=X[idx, vi], mode='lines',
-                    name=STATE_LABELS[vi][0],
-                    line=dict(color=palette[vi], width=1.5),
-                ), row=row+1, col=1)
-                fig_all.update_yaxes(title_text=STATE_LABELS[vi][1], row=row+1, col=1)
-
-            fig_all.update_layout(
-                **PLOT_LAYOUT,
-                height=200 * len(var_select),
-                showlegend=False,
-            )
-            for row in range(1, len(var_select) + 1):
-                fig_all.update_xaxes(showgrid=True, gridcolor=COLORS["grid"], row=row, col=1)
-                fig_all.update_yaxes(showgrid=True, gridcolor=COLORS["grid"], row=row, col=1)
-            fig_all.update_xaxes(title_text="Time (s)", row=len(var_select), col=1)
-            for ann in fig_all['layout']['annotations']:
-                ann['font'] = dict(size=11, color=COLORS["muted"])
+            fig_all = make_all_variables(result, t_range, var_select, result2)
             st.plotly_chart(fig_all, use_container_width=True, config={"displayModeBar": False})
-    tab_idx += 1
 
     # ── Export Tab ──
-    with tabs[tab_idx]:
+    with tabs[3]:
         st.markdown("Download simulation data for external analysis.")
+
+        # Primary result exports
+        st.markdown(f"**{result['preset']}**")
         col_dl1, col_dl2, col_dl3 = st.columns(3)
 
-        # Full waveform CSV
-        t = result["t"]
-        X = result["X"]
+        t = result["t"]; X = result["X"]; m = result["metrics"]
         idx_plot = np.where((t >= t_range[0]) & (t <= t_range[1]))[0]
         wave_df = pd.DataFrame(X[idx_plot], columns=[STATE_LABELS[i][0] for i in range(12)])
         wave_df.insert(0, "Time (s)", t[idx_plot])
         wave_df["ECG (mV)"] = result["ecg"][idx_plot]
-        wave_df["LV Pressure (mmHg)"] = result["metrics"]["lvp_full"][idx_plot]
-        wave_df["LV Outflow (cm³/s)"] = result["metrics"]["lvof"][idx_plot]
+        wave_df["LV Pressure (mmHg)"] = m["lvp_full"][idx_plot]
+        wave_df["LV Outflow (cm3/s)"] = m["lvof"][idx_plot]
 
         col_dl1.download_button(
             "Waveform Data (CSV)",
@@ -989,19 +1137,14 @@ if result is not None:
             f"cardiosim_{preset.replace(' ', '_').lower()}_waveforms.csv",
             mime='text/csv', use_container_width=True,
         )
-
-        # PV loop CSV
-        m = result["metrics"]
         if len(m["lv_vol"]) > 0:
-            pv_df = pd.DataFrame({"LV Volume (cm³)": m["lv_vol"], "LV Pressure (mmHg)": m["lvp"]})
+            pv_df = pd.DataFrame({"LV Volume (cm3)": m["lv_vol"], "LV Pressure (mmHg)": m["lvp"]})
             col_dl2.download_button(
                 "PV Loop Data (CSV)",
                 pv_df.to_csv(index=False).encode('utf-8'),
                 f"cardiosim_{preset.replace(' ', '_').lower()}_pvloop.csv",
                 mime='text/csv', use_container_width=True,
             )
-
-        # Full raw data CSV
         full_df = pd.DataFrame(X, columns=[STATE_LABELS[i][0] for i in range(12)])
         full_df.insert(0, "Time (s)", t)
         col_dl3.download_button(
@@ -1011,31 +1154,51 @@ if result is not None:
             mime='text/csv', use_container_width=True,
         )
 
-        # Summary metrics
-        st.markdown("**Simulation Summary**")
-        summary = {
-            "Preset": preset,
-            "Heart Rate (bpm)": heart_rate,
-            "Contractility (%)": contractility,
-            "Peripheral Resistance": resistance,
-            "Arterial Compliance": compliance,
-            "Cardiac Output (L/min)": f"{m['co']:.2f}",
-            "Stroke Volume (cm³)": f"{m['sv']:.1f}",
-            "Systolic BP (mmHg)": f"{m['sys']:.0f}",
-            "Diastolic BP (mmHg)": f"{m['dia']:.0f}",
-            "MAP (mmHg)": f"{m['map_val']:.0f}",
-            "Pulse Pressure (mmHg)": f"{m['pp']:.0f}",
-        }
-        st.json(summary)
+        # Second result exports if comparing
+        if result2 is not None:
+            st.markdown("---")
+            st.markdown(f"**{result2['preset']}**")
+            col2_dl1, col2_dl2, col2_dl3 = st.columns(3)
+            t2 = result2["t"]; X2 = result2["X"]; m2 = result2["metrics"]
+            idx2 = np.where((t2 >= t_range[0]) & (t2 <= t_range[1]))[0]
+            wave_df2 = pd.DataFrame(X2[idx2], columns=[STATE_LABELS[i][0] for i in range(12)])
+            wave_df2.insert(0, "Time (s)", t2[idx2])
+            wave_df2["ECG (mV)"] = result2["ecg"][idx2]
+            wave_df2["LV Pressure (mmHg)"] = m2["lvp_full"][idx2]
+            wave_df2["LV Outflow (cm3/s)"] = m2["lvof"][idx2]
+            p2_name = result2["preset"].replace(' ', '_').lower()
+
+            col2_dl1.download_button(
+                "Waveform Data (CSV)",
+                wave_df2.to_csv(index=False).encode('utf-8'),
+                f"cardiosim_{p2_name}_waveforms.csv",
+                mime='text/csv', use_container_width=True, key="dl2_wave",
+            )
+            if len(m2["lv_vol"]) > 0:
+                pv_df2 = pd.DataFrame({"LV Volume (cm3)": m2["lv_vol"], "LV Pressure (mmHg)": m2["lvp"]})
+                col2_dl2.download_button(
+                    "PV Loop Data (CSV)",
+                    pv_df2.to_csv(index=False).encode('utf-8'),
+                    f"cardiosim_{p2_name}_pvloop.csv",
+                    mime='text/csv', use_container_width=True, key="dl2_pv",
+                )
+            full_df2 = pd.DataFrame(X2, columns=[STATE_LABELS[i][0] for i in range(12)])
+            full_df2.insert(0, "Time (s)", t2)
+            col2_dl3.download_button(
+                "Full Simulation (CSV)",
+                full_df2.to_csv(index=False).encode('utf-8'),
+                f"cardiosim_{p2_name}_full.csv",
+                mime='text/csv', use_container_width=True, key="dl2_full",
+            )
 
 else:
     # ── Landing state ──
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; padding: 3rem 1rem;">
-        <div style="font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; color: #64ffda;">CardioSim</div>
-        <h3 style="color: #ccd6f6; margin-bottom: 0.5rem;">Select a condition and run a simulation</h3>
-        <p style="color: #8892b0; max-width: 500px; margin: 0 auto; line-height: 1.6;">
+        <div style="font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--primary-color);">CardioSim</div>
+        <h3 style="color: var(--text-color); margin-bottom: 0.5rem;">Select a condition and run a simulation</h3>
+        <p style="color: var(--text-color); opacity: 0.8; max-width: 500px; margin: 0 auto; line-height: 1.6;">
             Choose a clinical preset from the sidebar, adjust physiological parameters,
             and click <b>Run Simulation</b> to visualize hemodynamic waveforms, synthetic ECG,
             and pressure-volume loops.
@@ -1048,14 +1211,16 @@ else:
     cols = st.columns(2)
     for i, (name, info) in enumerate(CLINICAL_PRESETS.items()):
         with cols[i % 2]:
-            cat_colors = {"normal": "#64ffda", "arrhythmia": "#ffd93d",
-                          "structural": "#ff9f43", "critical": "#ff6b6b"}
-            border_color = cat_colors.get(info["category"], "#0f3460")
+            cat_colors = {"normal": "#059669", "arrhythmia": "#d97706",
+                          "structural": "#2563eb", "critical": "#dc2626"}
+            border_color = cat_colors.get(info["category"], "#cbd5e1")
+            
+            # FIXED: Replaced background color and specific text colors with native Streamlit CSS variables
             st.markdown(f"""
-            <div style="background: #1a1a2e; border-left: 3px solid {border_color};
-                        border-radius: 0 8px 8px 0; padding: 0.8rem 1rem; margin-bottom: 0.5rem;">
+            <div style="background: var(--secondary-background-color); border-left: 3px solid {border_color};
+                        border-radius: 0 8px 8px 0; padding: 0.8rem 1rem; margin-bottom: 0.5rem; color: var(--text-color);">
                 <b>{name}</b><br>
-                <span style="font-size: 0.82rem; color: #8892b0;">{info['desc']}</span>
+                <span style="font-size: 0.82rem; opacity: 0.8;">{info['desc']}</span>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1063,9 +1228,9 @@ else:
 # ── Footer ──
 st.markdown("---")
 st.markdown("""
-<div style="text-align: center; color: #4a5568; font-size: 0.75rem; padding: 0.5rem;">
+<div style="text-align: center; color: var(--text-color); opacity: 0.6; font-size: 0.75rem; padding: 0.5rem;">
     CardioSim v2.0 · Based on Avanzolini et al. (1988) with McSharry ECG synthesis ·
     Built by Artemii Remizov under supervision of Prof. Sergey Lapin, WSU ·
-    <a href="https://creativecommons.org/licenses/by-nc/4.0/" style="color: #64ffda;">CC BY-NC 4.0</a>
+    <a href="https://creativecommons.org/licenses/by-nc/4.0/" style="color: var(--primary-color);">CC BY-NC 4.0</a>
 </div>
 """, unsafe_allow_html=True)

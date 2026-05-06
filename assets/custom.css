@@ -1,0 +1,232 @@
+/* CardioSim — custom theme overrides for Dash DARKLY */
+
+:root {
+    --bs-primary: #0ea5e9;
+    --bs-primary-rgb: 14, 165, 233;
+    --bs-body-bg: #0f172a;
+    --cs-surface: #1e293b;
+    --cs-border: rgba(148, 163, 184, 0.12);
+}
+
+body {
+    padding-top: 62px;
+    background-color: #0f172a;
+    color: #e2e8f0;
+}
+
+/* ── Navbar ── */
+.navbar {
+    background-color: #0c1424 !important;
+    border-bottom: 1px solid var(--cs-border);
+    backdrop-filter: blur(8px);
+}
+
+.navbar-brand {
+    font-weight: 800;
+    font-size: 1.2rem;
+    letter-spacing: -0.03em;
+    color: #f8fafc !important;
+}
+
+.navbar-brand span.brand-dot {
+    color: #0ea5e9;
+}
+
+/* ── Control panel cards ── */
+.control-card .card {
+    background-color: var(--cs-surface);
+    border: 1px solid var(--cs-border);
+    border-radius: 10px;
+}
+
+.control-card .card-header {
+    background-color: transparent;
+    border-bottom: 1px solid var(--cs-border);
+    padding: 0.55rem 1rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.control-card .card-body {
+    padding: 0.85rem 1rem;
+}
+
+/* ── Sliders ── */
+.rc-slider-track {
+    background-color: #0ea5e9 !important;
+}
+
+.rc-slider-handle {
+    border-color: #0ea5e9 !important;
+    background-color: #0ea5e9 !important;
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.25) !important;
+}
+
+.rc-slider-rail {
+    background-color: rgba(148, 163, 184, 0.2) !important;
+}
+
+/* ── Metric cards ── */
+.metric-card .card {
+    background-color: var(--cs-surface);
+    border-radius: 8px;
+    border: 1px solid var(--cs-border);
+    transition: box-shadow 0.2s ease;
+}
+
+.metric-card .card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.metric-card .card-body {
+    padding: 0.75rem 0.85rem;
+}
+
+.metric-value {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace !important;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+
+.border-3 { border-width: 3px !important; }
+
+/* ── Tabs ── */
+.nav-tabs {
+    border-bottom: 1px solid var(--cs-border);
+}
+
+.nav-tabs .nav-link {
+    color: #94a3b8;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.nav-tabs .nav-link:hover {
+    color: #e2e8f0;
+    border-bottom-color: rgba(14, 165, 233, 0.4);
+}
+
+.nav-tabs .nav-link.active {
+    color: #0ea5e9;
+    background: transparent;
+    border-bottom: 2px solid #0ea5e9;
+}
+
+/* ── Preset gallery cards ── */
+.preset-gallery-card {
+    background-color: var(--cs-surface);
+    border: 1px solid var(--cs-border);
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+    height: 100%;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    cursor: default;
+}
+
+.preset-gallery-card:hover {
+    border-color: rgba(14, 165, 233, 0.4);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.preset-gallery-card .preset-name {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #e2e8f0;
+    margin-bottom: 0.25rem;
+}
+
+.preset-gallery-card .preset-desc {
+    font-size: 0.75rem;
+    color: #64748b;
+    line-height: 1.45;
+}
+
+/* ── Welcome hero ── */
+.welcome-hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border: 1px solid var(--cs-border);
+    border-radius: 12px;
+    padding: 2rem;
+}
+
+/* ── Run button ── */
+#run-btn {
+    background-color: #0ea5e9;
+    border-color: #0ea5e9;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: background-color 0.15s, box-shadow 0.15s;
+}
+
+#run-btn:hover:not(:disabled) {
+    background-color: #0284c7;
+    border-color: #0284c7;
+    box-shadow: 0 0 16px rgba(14, 165, 233, 0.35);
+}
+
+#run-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* ── Dropdown ── */
+.Select-control, .Select-menu-outer {
+    background-color: #1e293b !important;
+    border-color: var(--cs-border) !important;
+    color: #e2e8f0 !important;
+}
+
+.Select-option {
+    background-color: #1e293b !important;
+    color: #e2e8f0 !important;
+}
+
+.Select-option:hover, .Select-option.is-focused {
+    background-color: #0ea5e920 !important;
+}
+
+/* ── Loading spinner ── */
+._dash-loading {
+    opacity: 0.6;
+}
+
+/* ── Export tab ── */
+.export-btn {
+    border-color: var(--cs-border) !important;
+    color: #94a3b8 !important;
+    background-color: var(--cs-surface) !important;
+    font-size: 0.85rem;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.export-btn:hover {
+    border-color: #0ea5e9 !important;
+    color: #0ea5e9 !important;
+}
+
+/* ── Footer ── */
+.footer-bar {
+    border-top: 1px solid var(--cs-border);
+    padding: 0.75rem 0;
+    color: #334155;
+    font-size: 0.75rem;
+}
+
+/* ── Scrollable graph container ── */
+.all-vars-container {
+    overflow-y: auto;
+    max-height: 80vh;
+}
+
+/* ── Badge pills for category ── */
+.badge-normal    { background-color: #10b981 !important; }
+.badge-arrhythmia { background-color: #f59e0b !important; }
+.badge-structural { background-color: #3b82f6 !important; }
+.badge-critical  { background-color: #ef4444 !important; }
