@@ -11,30 +11,30 @@ Copyright (c) 2025 Artemii Remizov
 ```bash
 git clone https://github.com/artremizov/CardiacArrhythmia.git
 cd CardiacArrhythmia
+
+# Backend
 pip install -r requirements.txt
-python app.py
+
+# Frontend (build once)
+cd frontend && npm install && npm run build && cd ..
+
+# Run (serves the built React UI + API on port 8000)
+python api.py
 ```
 
-Open your browser to **http://localhost:8050**.
+Open your browser to **http://localhost:8000**.
 
-### Environment Setup (Optional)
+### Development Mode (hot reload)
 
-Using conda:
 ```bash
-conda create -n cardiosim python=3.11
-conda activate cardiosim
-pip install -r requirements.txt
-python app.py
+# Terminal 1 — FastAPI backend
+python api.py
+
+# Terminal 2 — Vite dev server with HMR (proxies /api to :8000)
+cd frontend && npm run dev
 ```
 
-Using venv:
-```bash
-python -m venv venv
-venv\Scripts\activate      # Windows
-# source venv/bin/activate  # macOS/Linux
-pip install -r requirements.txt
-python app.py
-```
+Open **http://localhost:5173** for the dev server.
 
 ## Features
 
@@ -99,13 +99,19 @@ Consistent with the original Avanzolini paper and standard physiological referen
 ## File Structure
 
 ```
-├── app.py                # Dash web application — layout and callbacks
+├── api.py                # FastAPI backend — REST API + serves built frontend
 ├── model.py              # ODE physics, clinical presets, parameter builder
 ├── ecg.py                # Synthetic ECG and R-R interval generation
 ├── metrics.py            # Hemodynamic analysis and simulation runner
-├── plots.py              # Plotly figure factories
-├── assets/
-│   └── custom.css        # Dark theme overrides
+├── frontend/
+│   ├── src/
+│   │   ├── components/   # React components (Charts, Sidebar, MetricsRow, …)
+│   │   ├── lib/          # Plotly theme, classify utility
+│   │   ├── App.tsx       # Root component and state management
+│   │   ├── api.ts        # Typed fetch wrappers
+│   │   └── types.ts      # Shared TypeScript types
+│   ├── vite.config.ts    # Vite build config with /api proxy
+│   └── package.json
 ├── gen_paper_figures.py  # Standalone publication figure generator
 ├── requirements.txt      # Python dependencies
 ├── LICENSE               # CC BY-NC 4.0
@@ -114,13 +120,17 @@ Consistent with the original Avanzolini paper and standard physiological referen
 
 ## Dependencies
 
+**Python**
 ```
-dash>=2.14.0
-dash-bootstrap-components>=1.5.0
-plotly>=5.15.0
 numpy>=1.24.0
 scipy>=1.10.0
-pandas>=2.0.0
+fastapi>=0.110.0
+uvicorn>=0.29.0
+```
+
+**JavaScript (frontend)**
+```
+react 18, vite 5, typescript, tailwindcss, plotly.js-dist-min
 ```
 
 ## Citation

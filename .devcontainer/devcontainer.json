@@ -1,32 +1,34 @@
 {
-  "name": "Python 3",
+  "name": "CardioSim",
   "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",
   "customizations": {
     "codespaces": {
       "openFiles": [
         "README.md",
-        "app.py"
+        "api.py"
       ]
     },
     "vscode": {
       "settings": {},
       "extensions": [
         "ms-python.python",
-        "ms-python.vscode-pylance"
+        "ms-python.vscode-pylance",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
       ]
     }
   },
-  "updateContentCommand": "[ -f packages.txt ] && sudo apt update && sudo apt upgrade -y && sudo xargs apt install -y <packages.txt; [ -f requirements.txt ] && pip3 install --user -r requirements.txt; echo '✅ Packages installed and Requirements met'",
+  "updateContentCommand": "pip3 install --user -r requirements.txt && cd frontend && npm install && npm run build",
   "postAttachCommand": {
-    "server": "python app.py"
+    "server": "python api.py"
   },
   "portsAttributes": {
-    "8050": {
+    "8000": {
       "label": "CardioSim",
       "onAutoForward": "openPreview"
     }
   },
   "forwardPorts": [
-    8050
+    8000
   ]
 }
