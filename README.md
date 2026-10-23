@@ -51,10 +51,9 @@ From the repository root:
 cd paper
 python reproduce_paper.py                      # full run, about 15 minutes
 python reproduce_paper.py --use-cached-sweep   # reuse results_sweep.csv instead of recomputing the sweep
-python verify.py                               # independent checks; all should print PASS
 ```
 
-The folder also holds the results the paper reports (`results_scenarios.csv`, `results_sweep.csv`, `results_beta.csv`, `results_contractility_definition.csv`) and the log of a `verify.py` run (`verify.log`).
+The folder also holds the results the paper reports (`results_scenarios.csv`, `results_sweep.csv`, `results_beta.csv`, `results_contractility_definition.csv`).
 
 Dependencies: `numpy` 2.0 or newer, `scipy`, `matplotlib`, `pillow` (all in `requirements.txt`). The script also writes Fig1 to Fig4 as PNG and TIFF into `paper/`; these are not committed.
 
