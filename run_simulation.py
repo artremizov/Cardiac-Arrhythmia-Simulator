@@ -28,9 +28,15 @@ def cardiovascular_model(t, X):
     # VENTRICULAR FIBRILLATION
     # URO = 12.0       # Peak isovolumic pressure RV (mmHg)
     ELD = 0.1        # Diastolic elastance LV (mmHg/cm^3)
+    # STANDARD
     ELS = 1.375      # Systolic elastance LV (mmHg/cm^3)
+    # VENTRICULAR FIBRILLATION
+    # ELS = 0.6875     # Systolic elastance LV (mmHg/cm^3)
     ERD = 3.000E-02  # Diastolic elastance RV (mmHg/cm^3)
+    # STANDARD
     ERS = 0.3288     # Systolic elastance RV (mmHg/cm^3)
+    # VENTRICULAR FIBRILLATION
+    # ERS = 0.1644     # Systolic elastance RV (mmHg/cm^3)
     RL  = 8.000E-02  # Myocardium viscosity LV (mmHg*s/cm^3)
     RR  = 1.750E-02  # Myocardium viscosity RV (mmHg*s/cm^3)
 

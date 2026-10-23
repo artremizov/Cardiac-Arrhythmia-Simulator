@@ -45,7 +45,7 @@ The `paper/` folder holds the code and results for:
 
 > Artemii Remizov and Sergey Lapin. *Quantifying the hemodynamic effects of a prescribed ventricular-fibrillation-like state using a lumped-parameter cardiovascular model.*
 
-From inside `paper/`:
+From the repository root:
 
 ```bash
 cd paper
@@ -56,7 +56,7 @@ python verify.py                               # independent checks; all should 
 
 The folder also holds the results the paper reports (`results_scenarios.csv`, `results_sweep.csv`, `results_beta.csv`, `results_contractility_definition.csv`) and the log of a `verify.py` run (`verify.log`).
 
-Dependencies: `numpy`, `scipy`, `matplotlib`, `pillow` (all in `requirements.txt`).
+Dependencies: `numpy` 2.0 or newer, `scipy`, `matplotlib`, `pillow` (all in `requirements.txt`). The script also writes Fig1 to Fig4 as PNG and TIFF into `paper/`; these are not committed.
 
 ## Features
 
@@ -148,11 +148,11 @@ The Healthy Adult preset (30 s run):
 
 **Python**
 ```
-numpy>=1.24.0
-scipy>=1.10.0
+numpy>=2.0
+scipy>=1.13.0
 fastapi>=0.110.0
 uvicorn>=0.29.0
-matplotlib>=3.7.0
+matplotlib>=3.8.4
 pillow>=10.0.0
 ```
 

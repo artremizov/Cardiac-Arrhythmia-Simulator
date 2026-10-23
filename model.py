@@ -41,7 +41,7 @@ CLINICAL_PRESETS = {
     },
     "Ventricular Fibrillation": {
         "hr": 350, "contract": 25, "resist": 1.0, "compl": 1.46,
-        "desc": "Prescribed VF-like state: R-R intervals drawn uniformly from 0.12–0.25 s (240–500 bpm) and contractility reduced to 25%. Cardiac output falls 57% from Healthy Adult (mean of 5 runs of 30 s).",
+        "desc": "Irregular VF-like rhythm: R-R intervals drawn uniformly from 0.12–0.25 s (240–500 bpm) and contractility reduced to 25%. Cardiac output falls 57% from Healthy Adult (mean of 5 runs of 30 s).",
         "category": "critical",
     },
     "Ventricular Tachycardia": {

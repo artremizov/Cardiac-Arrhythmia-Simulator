@@ -95,7 +95,7 @@ export function Sidebar(props: Props) {
     preset === 'Ventricular Fibrillation'
       ? 'Not used by this preset: R-R intervals are drawn uniformly from 0.12–0.25 s.'
       : preset === 'Atrial Fibrillation'
-        ? 'Sets the mean of the random R-R intervals.'
+        ? 'Sets the mean of the gamma distribution the R-R intervals are drawn from; limiting them to 0.3–1.5 s lowers the actual rate (about 124 bpm at 130).'
         : undefined
 
   return (

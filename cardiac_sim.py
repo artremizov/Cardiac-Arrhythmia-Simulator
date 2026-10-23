@@ -151,7 +151,7 @@ CLINICAL_PRESETS = {
     "Ventricular Fibrillation": {
         "hr": 350, "contract": 25, "resist": 1.0, "compl": 1.46,
         "icon": "",
-        "desc": "Prescribed VF-like state: R-R intervals drawn uniformly from 0.12–0.25 s (240–500 bpm) and contractility reduced to 25%. Cardiac output falls 57% from Healthy Adult (mean of 5 runs of 30 s).",
+        "desc": "Irregular VF-like rhythm: R-R intervals drawn uniformly from 0.12–0.25 s (240–500 bpm) and contractility reduced to 25%. Cardiac output falls 57% from Healthy Adult (mean of 5 runs of 30 s).",
         "category": "critical",
     },
     "Ventricular Tachycardia": {
@@ -455,6 +455,8 @@ def calculate_metrics(t, X, p, rr_intervals=None):
         beat_sys = []
         beat_dia = []
         beat_ranges = []  # (start, end, idx_array) for each beat
+        beat_aop_int = []  # integral of aortic pressure over each beat
+        beat_dur = []
         for b in range(avg_start_idx, len(valid) - 1):
             bs = valid[b]
             be = valid[b + 1]
@@ -465,6 +467,8 @@ def calculate_metrics(t, X, p, rr_intervals=None):
             beat_svs.append(sv_b)
             beat_sys.append(np.max(X[b_idx, 0]))
             beat_dia.append(np.min(X[b_idx, 0]))
+            beat_aop_int.append(_trapz(X[b_idx, 0], t[b_idx]))
+            beat_dur.append(t[b_idx][-1] - t[b_idx][0])
             beat_ranges.append(b_idx)
 
         if len(beat_svs) == 0:
@@ -485,7 +489,7 @@ def calculate_metrics(t, X, p, rr_intervals=None):
 
         return dict(
             co=avg_co, sv=avg_sv, sys=avg_sys, dia=avg_dia,
-            map_val=avg_dia + (avg_sys - avg_dia) / 3.0,
+            map_val=np.sum(beat_aop_int) / np.sum(beat_dur),  # time average of aortic pressure
             pp=avg_sys - avg_dia,
             lv_vol=X[pv_idx, 11], lvp=LVP[pv_idx],
             lvof=LVOF, lvp_full=LVP,
@@ -512,7 +516,7 @@ def calculate_metrics(t, X, p, rr_intervals=None):
     aop_beat = X[idx, 0]
     sys_p = np.max(aop_beat)
     dia_p = np.min(aop_beat)
-    map_val = dia_p + (sys_p - dia_p) / 3.0
+    map_val = _trapz(aop_beat, t_beat) / (t_beat[-1] - t_beat[0])  # time average of aortic pressure
     pp = sys_p - dia_p
 
     return dict(
