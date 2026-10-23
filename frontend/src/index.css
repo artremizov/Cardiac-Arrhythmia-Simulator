@@ -63,6 +63,8 @@ body {
 
 .sidebar-foot { padding: 16px 24px; border-top: 1px solid var(--border); }
 .error { margin-top: 8px; font-size: 12px; line-height: 16px; color: var(--danger); }
+.credit { margin-top: 12px; font-size: 12px; line-height: 16px; color: var(--muted); }
+.credit a { color: inherit; text-decoration: underline; }
 
 /* ── Form controls ── */
 select {

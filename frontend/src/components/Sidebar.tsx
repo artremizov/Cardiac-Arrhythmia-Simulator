@@ -160,6 +160,10 @@ export function Sidebar(props: Props) {
           {loading ? 'Running…' : 'Run simulation'}
         </button>
         {error && <p className="error" role="alert">{error}</p>}
+        <p className="credit">
+          © 2025 Artemii Remizov · WSU ·{' '}
+          <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noreferrer">CC BY-NC 4.0</a>
+        </p>
       </footer>
     </aside>
   )

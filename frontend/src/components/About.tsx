@@ -108,7 +108,8 @@ export function About() {
       <section>
         <h3>Use and license</h3>
         <p>
-          For research and teaching; not for clinical decisions. © 2025 Artemii Remizov. Licensed under{' '}
+          For research and teaching; not for clinical decisions. © 2025 Artemii Remizov, Washington State
+          University. Licensed under{' '}
           <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noreferrer">CC BY-NC 4.0</a>.
           Source:{' '}
           <a href="https://github.com/artremizov/Cardiac-Arrhythmia-Simulator" target="_blank" rel="noreferrer">
