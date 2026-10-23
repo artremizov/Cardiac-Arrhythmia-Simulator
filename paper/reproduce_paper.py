@@ -215,7 +215,7 @@ for ax in axes.flat:
 plt.tight_layout()
 save_fig("Fig1")
 
-# ------------------------------------------------------------------ figure 2
+# ------------------------------------------------------------------ figure 3
 colors = {"Baseline": "#111827", "Rate only": "#d97706", "Contractility only": "#2563eb",
           "VF-like": "#b91c1c", "Severe VF-like": "#6d28d9"}
 styles = {"Baseline": "-", "Rate only": "--", "Contractility only": "-.",
@@ -239,7 +239,7 @@ axes[0].set_ylabel("Left-ventricular pressure (mmHg)")
 plt.tight_layout()
 save_fig("Fig3")
 
-# ------------------------------------------------------------------ sweep + figure 3
+# ------------------------------------------------------------------ sweep + figure 4
 HRS = [60, 80, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350]
 KAPPAS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 co_grid = np.zeros((len(KAPPAS), len(HRS)))
@@ -292,7 +292,7 @@ ax.set_ylabel("Contractility (% of baseline)")
 plt.tight_layout()
 save_fig("Fig4")
 
-# ------------------------------------------------------------------ figure 4 (transient)
+# ------------------------------------------------------------------ figure 2 (transient)
 def per_beat(t, X, Tc, t0=0.0):
     """Mean, max and min aortic pressure for each complete cycle.
     Returns cycle edges (len n+1) and per-cycle values (len n)."""

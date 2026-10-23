@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: "Code and data for: Quantifying the hemodynamic effects of a prescribed ventricular-fibrillation-like state using a lumped-parameter cardiovascular model"
+version: "2.0"
+authors:
+  - given-names: Artemii
+    family-names: Remizov
+    affiliation: Washington State University
+  - given-names: Sergey
+    family-names: Lapin
+    affiliation: Washington State University
+license: CC-BY-NC-4.0
+repository-code: "https://github.com/artremizov/Cardiac-Arrhythmia-Simulator"
