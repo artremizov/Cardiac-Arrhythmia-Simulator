@@ -16,6 +16,7 @@ def calculate_metrics(t, X, p, rr_intervals=None):
     Regular rhythms: snap to exact cycle boundaries for a clean PV loop.
     Stochastic rhythms (AF, VF): average over last ~8 beats, pick representative loop.
     Ejection fraction is SV / EDV (in %); hr is the effective rate over the same beats.
+    Mean arterial pressure is the time average of aortic pressure over the analyzed beats.
     """
     n = len(t)
     LVOF = np.zeros(n)
@@ -66,6 +67,7 @@ def calculate_metrics(t, X, p, rr_intervals=None):
         n_avg_beats = min(8, len(valid) - 2)
         avg_start_idx = len(valid) - 1 - n_avg_beats
         beat_svs, beat_sys, beat_dia, beat_edv, beat_ranges = [], [], [], [], []
+        beat_aop_int, beat_dur = [], []
         for b in range(avg_start_idx, len(valid) - 1):
             bs = valid[b]
             be = valid[b + 1]
@@ -76,6 +78,8 @@ def calculate_metrics(t, X, p, rr_intervals=None):
             beat_sys.append(np.max(X[b_idx, 0]))
             beat_dia.append(np.min(X[b_idx, 0]))
             beat_edv.append(np.max(X[b_idx, 11]))
+            beat_aop_int.append(_trapz(X[b_idx, 0], t[b_idx]))
+            beat_dur.append(t[b_idx][-1] - t[b_idx][0])
             beat_ranges.append(b_idx)
 
         if len(beat_svs) == 0:
@@ -93,7 +97,7 @@ def calculate_metrics(t, X, p, rr_intervals=None):
 
         return dict(
             co=avg_co, sv=avg_sv, sys=avg_sys, dia=avg_dia,
-            map_val=avg_dia + (avg_sys - avg_dia) / 3.0,
+            map_val=np.sum(beat_aop_int) / np.sum(beat_dur),
             ef=np.mean(np.array(beat_svs) / np.array(beat_edv)) * 100.0,
             hr=60.0 / avg_rr,
             pp=avg_sys - avg_dia,
@@ -120,7 +124,7 @@ def calculate_metrics(t, X, p, rr_intervals=None):
     aop_beat = X[idx, 0]
     sys_p    = np.max(aop_beat)
     dia_p    = np.min(aop_beat)
-    map_val  = dia_p + (sys_p - dia_p) / 3.0
+    map_val  = _trapz(aop_beat, t_beat) / (t_beat[-1] - t_beat[0])
     pp       = sys_p - dia_p
 
     return dict(

@@ -52,8 +52,8 @@ export function About() {
           Metrics come from the last full beat; for atrial and ventricular fibrillation they are means over the
           last 8 beats, and the heart rate shown is the effective rate over those beats. Blood pressure is aortic
           pressure (X1). Stroke volume is the integral of LV outflow over the beat; cardiac output is stroke volume
-          times heart rate; mean arterial pressure is diastolic + (systolic − diastolic) / 3; ejection fraction is
-          stroke volume divided by end-diastolic volume.
+          times heart rate; mean arterial pressure is the time average of aortic pressure over the same beats;
+          ejection fraction is stroke volume divided by end-diastolic volume.
         </p>
         <p>
           A value outside the resting adult reference range is marked amber with a Low or High label, and red
