@@ -1,90 +1,82 @@
-import type { SimResult } from '../types'
-import { classify, STATUS_COLOR } from '../lib/classify'
+import type { Metrics, SimResult } from '../types'
+import { classify, direction, RANGES, STATUS_COLOR } from '../lib/classify'
 
-interface MetricDef {
-  key: string; label: string; unit: string
-  value: (m: SimResult['metrics']) => number
-  fmt: (v: number) => string
-}
+interface Part { key: string; get: (m: Metrics) => number; digits: number }
+
+interface MetricDef { label: string; unit: string; parts: Part[] }
+
+const p = (key: string, get: (m: Metrics) => number, digits = 0): Part => ({ key, get, digits })
 
 const METRICS: MetricDef[] = [
-  { key: 'co',  label: 'Cardiac Output',     unit: 'L/min', value: m => m.co,      fmt: v => v.toFixed(2) },
-  { key: 'sv',  label: 'Stroke Volume',      unit: 'mL',    value: m => m.sv,      fmt: v => v.toFixed(0) },
-  { key: 'sys', label: 'Systolic BP',        unit: 'mmHg',  value: m => m.sys,     fmt: v => v.toFixed(0) },
-  { key: 'dia', label: 'Diastolic BP',       unit: 'mmHg',  value: m => m.dia,     fmt: v => v.toFixed(0) },
-  { key: 'map', label: 'Mean Art. Pressure', unit: 'mmHg',  value: m => m.map_val, fmt: v => v.toFixed(0) },
-  { key: 'pp',  label: 'Pulse Pressure',     unit: 'mmHg',  value: m => m.pp,      fmt: v => v.toFixed(0) },
+  { label: 'Cardiac output',         unit: 'L/min', parts: [p('co',  m => m.co, 2)] },
+  { label: 'Stroke volume',          unit: 'mL',    parts: [p('sv',  m => m.sv, 1)] },
+  { label: 'Blood pressure',         unit: 'mmHg',  parts: [p('sys', m => m.sys), p('dia', m => m.dia)] },
+  { label: 'Mean arterial pressure', unit: 'mmHg',  parts: [p('map', m => m.map_val)] },
+  { label: 'Ejection fraction',      unit: '%',     parts: [p('ef',  m => m.ef)] },
+  { label: 'Heart rate',             unit: 'bpm',   parts: [p('hr',  m => m.hr)] },
 ]
+
+const fmtRange = (k: string, digits: number) =>
+  RANGES[k].normal.map(v => v.toFixed(digits === 2 ? 1 : 0)).join('–')
+
+const signed = (d: number) => (Math.round(d) > 0 ? '+' : Math.round(d) < 0 ? '−' : '') + Math.abs(d).toFixed(0)
 
 export function MetricsRow({ primary, comparison }: { primary: SimResult; comparison: SimResult | null }) {
   return (
-    <div style={{
-      display:      'flex',
-      background:   '#ffffff',
-      border:       '1px solid #e5e7eb',
-      borderRadius: 8,
-      overflow:     'hidden',
-      marginBottom: 20,
-    }}>
-      {METRICS.map(({ key, label, unit, value, fmt }, i) => {
-        const v1    = value(primary.metrics)
-        const v2    = comparison ? value(comparison.metrics) : null
-        const st    = classify(key, v1)
-        const color = STATUS_COLOR[st]
-        const delta = v2 != null && v1 !== 0 ? ((v2 - v1) / Math.abs(v1)) * 100 : null
-
+    <section className="strip" aria-label="Results">
+      {METRICS.map(({ label, unit, parts }) => {
+        const flags = parts
+          .map(pt => ({ pt, dir: direction(pt.key, pt.get(primary.metrics)) }))
+          .filter(f => f.dir)
+        const ref = parts.map(pt => fmtRange(pt.key, pt.digits)).join(' / ')
         return (
-          <div
-            key={key}
-            style={{
-              flex:          1,
-              padding:       '12px 14px',
-              borderLeft:    i > 0 ? '1px solid #f1f5f9' : 'none',
-              display:       'flex',
-              flexDirection: 'column',
-              gap:           3,
-            }}
-          >
-            {/* Status dot + label */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{
-                width: 5, height: 5, borderRadius: '50%',
-                background: color, display: 'inline-block', flexShrink: 0,
-              }} />
-              <span style={{
-                fontSize:      '0.65rem',
-                fontWeight:    600,
-                color:         '#94a3b8',
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-              }}>{label}</span>
+          <div className="strip-cell" key={label}>
+            <div className="strip-label">{label}</div>
+            <div className="strip-value">
+              {parts.map((pt, i) => {
+                const v = pt.get(primary.metrics)
+                return (
+                  <span key={pt.key}>
+                    {i > 0 && <span className="strip-sep">/</span>}
+                    <span style={{ color: STATUS_COLOR[classify(pt.key, v)] }}>{v.toFixed(pt.digits)}</span>
+                  </span>
+                )
+              })}
+              <span className="strip-unit">{unit}</span>
             </div>
-
-            {/* Value + delta */}
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-              <span style={{
-                fontSize:   '1.3rem',
-                fontWeight: 700,
-                color,
-                fontFamily: "'JetBrains Mono', Consolas, monospace",
-                lineHeight: 1,
-              }}>{fmt(v1)}</span>
-              {delta != null && (
-                <span style={{
-                  fontSize:   '0.68rem',
-                  fontWeight: 600,
-                  color:      delta > 0 ? '#dc2626' : '#059669',
-                }}>
-                  {delta > 0 ? '+' : ''}{delta.toFixed(1)}%
+            <div className="strip-meta">
+              {flags.length > 0 && (
+                <span className="flag">
+                  {parts.map((pt, i) => {
+                    const v = pt.get(primary.metrics), st = classify(pt.key, v)
+                    return (
+                      <span key={pt.key} style={{ color: st === 'normal' ? 'var(--muted)' : STATUS_COLOR[st] }}>
+                        {i > 0 && ' / '}{direction(pt.key, v) ?? '–'}
+                      </span>
+                    )
+                  })}
                 </span>
               )}
+              <span>Ref {ref}</span>
             </div>
-
-            {/* Unit */}
-            <span style={{ fontSize: '0.68rem', color: '#9ca3af' }}>{unit}</span>
+            {comparison && <Compare parts={parts} a={primary.metrics} b={comparison.metrics} />}
           </div>
         )
       })}
+    </section>
+  )
+}
+
+function Compare({ parts, a, b }: { parts: Part[]; a: Metrics; b: Metrics }) {
+  const vb = parts.map(pt => pt.get(b).toFixed(pt.digits)).join('/')
+  const first = parts[0]
+  const va = first.get(a), vbn = first.get(b)
+  // A percentage change is shown for single-valued metrics only
+  const delta = parts.length === 1 && va !== 0 ? (vbn - va) / Math.abs(va) * 100 : null
+  return (
+    <div className="strip-compare">
+      B <span className="num">{vb}</span>
+      {delta != null && <span className="num"> ({signed(delta)}%)</span>}
     </div>
   )
 }

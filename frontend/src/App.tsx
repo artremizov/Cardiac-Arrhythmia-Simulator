@@ -1,21 +1,23 @@
-import { useEffect, useState } from 'react'
-import type { Presets, SimResponse, Tab } from './types'
+import { useEffect, useMemo, useState } from 'react'
+import type { Presets, RunParams, SimResponse, Tab } from './types'
 import { getPresets, simulate } from './api'
 import { Sidebar } from './components/Sidebar'
 import { MetricsRow } from './components/MetricsRow'
-import { MonitorChart } from './components/MonitorChart'
+import { WaveformChart } from './components/WaveformChart'
 import { PVLoopChart } from './components/PVLoopChart'
 import { AllVarsChart } from './components/AllVarsChart'
 import { ExportPanel } from './components/ExportPanel'
+import { About } from './components/About'
 
-const CAT_COLOR: Record<string, string> = {
-  normal: '#059669', arrhythmia: '#d97706', structural: '#2563eb', critical: '#dc2626',
-}
+const TABS: [Tab, string][] = [
+  ['waveforms', 'Waveforms'], ['pvloop', 'PV loop'], ['allvars', 'State variables'],
+  ['export', 'Export'], ['about', 'About'],
+]
 
 export default function App() {
-  const [presets, setPresets]           = useState<Presets>({})
-  const [preset,  setPreset]            = useState('Healthy Adult')
-  const [comparePreset, setComparePreset] = useState('Heart Failure (Systolic)')
+  const [presets, setPresets]             = useState<Presets>({})
+  const [preset,  setPreset]              = useState('Healthy Adult')
+  const [comparePreset, setComparePreset] = useState('Ventricular Fibrillation')
   const [compareMode,   setCompareMode]   = useState(false)
   const [hr,       setHr]       = useState(75)
   const [contract, setContract] = useState(100)
@@ -24,29 +26,48 @@ export default function App() {
   const [duration, setDuration] = useState(6.0)
   const [plotWindow, setPlotWindow] = useState(2.5)
   const [simData, setSimData]   = useState<SimResponse | null>(null)
+  const [lastRun, setLastRun]   = useState<RunParams | null>(null)
   const [loading, setLoading]   = useState(false)
   const [error,   setError]     = useState<string | null>(null)
-  const [tab, setTab]           = useState<Tab>('monitor')
+  const [tab, setTab]           = useState<Tab>('waveforms')
+  const [elapsed, setElapsed]   = useState<number | null>(null)
 
   useEffect(() => {
-    getPresets().then(setPresets).catch(console.error)
+    getPresets().then(setPresets).catch(() => setError('Could not load presets from the server.'))
   }, [])
 
-  useEffect(() => {
-    const info = presets[preset]
+  const loadPreset = (name: string) => {
+    const info = presets[name]
     if (info) { setHr(info.hr); setContract(info.contract); setResist(info.resist); setCompl(info.compl) }
-  }, [preset, presets])
+  }
+  useEffect(() => { loadPreset(preset) }, [preset, presets])  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setPlotWindow(pw => Math.min(pw, duration))
-  }, [duration])
+    if (comparePreset === preset) {
+      const other = Object.keys(presets).find(n => n !== preset)
+      if (other) setComparePreset(other)
+    }
+  }, [preset, comparePreset, presets])
+
+  useEffect(() => { setPlotWindow(pw => Math.min(pw, duration)) }, [duration])
+
+  const current: RunParams = useMemo(() => ({
+    preset, hr, contract, resist, compl, duration,
+    compare_preset: compareMode ? comparePreset : undefined,
+  }), [preset, hr, contract, resist, compl, duration, compareMode, comparePreset])
+
+  const info = presets[preset]
+  const modified = !!info && (info.hr !== hr || info.contract !== contract || info.resist !== resist || info.compl !== compl)
+  const stale = !!lastRun && JSON.stringify(lastRun) !== JSON.stringify(current)
 
   const runSimulation = async () => {
     setLoading(true); setError(null)
+    const t0 = performance.now()
     try {
-      const result = await simulate({ preset, hr, contract, resist, compl, duration,
-        compare_preset: compareMode ? comparePreset : undefined })
-      setSimData(result); setTab('monitor')
+      const result = await simulate(current)
+      setSimData(result); setLastRun(current)
+      setElapsed((performance.now() - t0) / 1000)
+      if (tab === 'about') setTab('waveforms')
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -55,121 +76,65 @@ export default function App() {
   }
 
   const r1 = simData?.primary ?? null
-  const r2 = (compareMode && simData?.comparison) ? simData.comparison : null
-  const presetInfo = presets[preset]
-  const presetCat  = presetInfo?.category ?? 'normal'
-  const presetCol  = CAT_COLOR[presetCat] ?? '#64748b'
+  const r2 = simData?.comparison ?? null
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div className="app">
       <Sidebar
         presets={presets} preset={preset} onPresetChange={setPreset}
+        modified={modified} onReset={() => loadPreset(preset)}
         compareMode={compareMode} onCompareModeChange={setCompareMode}
         comparePreset={comparePreset} onComparePresetChange={setComparePreset}
         hr={hr} onHrChange={setHr} contract={contract} onContractChange={setContract}
         resist={resist} onResistChange={setResist} compl={compl} onComplChange={setCompl}
         duration={duration} onDurationChange={setDuration}
         plotWindow={plotWindow} onPlotWindowChange={setPlotWindow}
-        onRun={runSimulation} loading={loading} error={error} presetName={preset}
+        onRun={runSimulation} loading={loading} error={error}
       />
 
-      <main className="main-content">
-        {!r1 ? (
-          /* Welcome screen */
-          <div>
-            <div style={{ marginBottom: 32 }}>
-              <h1 style={{ fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#111827', marginBottom: 6 }}>
-                Cardio<span style={{ color: '#2563eb' }}>Sim</span>
-              </h1>
-              <p style={{ fontSize: '0.85rem', color: '#6b7280' }}>
-                Interactive hemodynamic simulator · 12-ODE closed-loop cardiovascular model
-              </p>
+      <main className="main">
+        {r1 && lastRun && (
+          <div className="run-info">
+            <div className="run-title">
+              {r2 ? <>A: {r1.preset}<span className="vs">B: {r2.preset}</span></> : r1.preset}
             </div>
-
-            <p style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: 16 }}>
-              Select a preset and click Run Simulation
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {Object.entries(presets).map(([name, info]) => {
-                const col       = CAT_COLOR[info.category] ?? '#64748b'
-                const isSelected = preset === name
-                return (
-                  <button
-                    key={name}
-                    onClick={() => setPreset(name)}
-                    className="preset-gallery-card"
-                    style={{
-                      textAlign: 'left', padding: '14px 16px', borderRadius: 8,
-                      background: isSelected ? col + '08' : '#ffffff',
-                      border: `1px solid ${isSelected ? col + '40' : '#e5e7eb'}`,
-                      borderLeft: `3px solid ${col}`,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#111827' }}>{name}</span>
-                      <span style={{
-                        fontSize: '0.62rem', fontWeight: 600, padding: '2px 7px',
-                        borderRadius: 4, background: col + '14', color: col,
-                        letterSpacing: '0.04em', textTransform: 'uppercase',
-                      }}>{info.category}</span>
-                    </div>
-                    <p style={{ fontSize: '0.75rem', color: '#6b7280', lineHeight: 1.5,
-                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                      {info.desc}
-                    </p>
-                  </button>
-                )
-              })}
+            <div className="run-params">
+              {lastRun.preset !== 'Ventricular Fibrillation' && <>HR {lastRun.hr} bpm · </>}
+              contractility {lastRun.contract}% · resistance {lastRun.resist.toFixed(2)} mmHg·s/mL ·
+              compliance {lastRun.compl.toFixed(2)} mL/mmHg · {lastRun.duration.toFixed(1)} s simulated
+              {elapsed != null && <> · computed in {elapsed.toFixed(1)} s</>}
             </div>
-          </div>
-        ) : (
-          /* Results */
-          <div>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: presetCol, display: 'inline-block', flexShrink: 0 }} />
-                <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#111827' }}>{r1.preset}</h2>
-                <span style={{
-                  fontSize: '0.62rem', fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-                  background: presetCol + '14', color: presetCol,
-                  letterSpacing: '0.06em', textTransform: 'uppercase',
-                }}>{presetCat}</span>
-                {r2 && <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>vs {r2.preset}</span>}
-              </div>
-              <button
-                onClick={runSimulation} disabled={loading}
-                style={{
-                  padding: '7px 16px', borderRadius: 6, fontSize: '0.8rem', fontWeight: 600,
-                  background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe',
-                  cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1,
-                  transition: 'all 0.12s',
-                }}
-              >
-                {loading ? 'Running…' : `↺ Re-run ${r1.preset}`}
-              </button>
-            </div>
-
-            <MetricsRow primary={r1} comparison={r2} />
-
-            {/* Tabs */}
-            <div className="tab-bar">
-              {(['monitor', 'pvloop', 'allvars', 'export'] as Tab[]).map(t => (
-                <button key={t} className={`tab-btn ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>
-                  {{ monitor: 'Monitor', pvloop: 'PV Loop', allvars: 'All Variables', export: 'Export' }[t]}
-                </button>
-              ))}
-            </div>
-
-            <div className="card" style={{ padding: 20 }}>
-              {tab === 'monitor' && <MonitorChart primary={r1} comparison={r2} plotWindow={plotWindow} />}
-              {tab === 'pvloop'  && <PVLoopChart  primary={r1} comparison={r2} />}
-              {tab === 'allvars' && <AllVarsChart  primary={r1} comparison={r2} plotWindow={plotWindow} />}
-              {tab === 'export'  && <ExportPanel   primary={r1} comparison={r2} plotWindow={plotWindow} />}
-            </div>
+            {stale && !loading && <div className="stale">Settings changed since this run. Press Run simulation to update.</div>}
+            {loading && <div className="stale">Running…</div>}
           </div>
         )}
+
+        {r1 && <MetricsRow primary={r1} comparison={r2} />}
+
+        <nav className="tabs" role="tablist" aria-label="Views">
+          {TABS.map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id}
+                    className={`tab${tab === id ? ' is-active' : ''}`} onClick={() => setTab(id)}>
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="panel" role="tabpanel">
+          {tab === 'about' ? <About /> : !r1 ? (
+            <div className="empty">
+              <p className="empty-title">No results yet</p>
+              <p>Choose a preset or set the parameters in the sidebar, then press Run simulation.</p>
+            </div>
+          ) : (
+            <>
+              {tab === 'waveforms' && <WaveformChart primary={r1} comparison={r2} plotWindow={plotWindow} />}
+              {tab === 'pvloop'    && <PVLoopChart   primary={r1} comparison={r2} />}
+              {tab === 'allvars'   && <AllVarsChart  primary={r1} comparison={r2} plotWindow={plotWindow} />}
+              {tab === 'export'    && <ExportPanel   primary={r1} comparison={r2} plotWindow={plotWindow} />}
+            </>
+          )}
+        </div>
       </main>
     </div>
   )

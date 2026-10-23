@@ -5,6 +5,8 @@ export interface Metrics {
   dia: number
   map_val: number
   pp: number
+  ef: number
+  hr: number
   lv_vol: number[]
   lvp: number[]
   lvof: number[]
@@ -37,4 +39,14 @@ export interface PresetInfo {
 
 export type Presets = Record<string, PresetInfo>
 
-export type Tab = 'monitor' | 'pvloop' | 'allvars' | 'export'
+export interface RunParams {
+  preset: string
+  hr: number
+  contract: number
+  resist: number
+  compl: number
+  duration: number
+  compare_preset?: string
+}
+
+export type Tab = 'waveforms' | 'pvloop' | 'allvars' | 'export' | 'about'

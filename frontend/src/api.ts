@@ -1,14 +1,6 @@
-import type { SimResponse, Presets } from './types'
+import type { SimResponse, Presets, RunParams } from './types'
 
-export async function simulate(params: {
-  preset: string
-  hr: number
-  contract: number
-  resist: number
-  compl: number
-  duration: number
-  compare_preset?: string
-}): Promise<SimResponse> {
+export async function simulate(params: RunParams): Promise<SimResponse> {
   const res = await fetch('/api/simulate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -23,5 +15,6 @@ export async function simulate(params: {
 
 export async function getPresets(): Promise<Presets> {
   const res = await fetch('/api/presets')
+  if (!res.ok) throw new Error('Could not load presets')
   return res.json()
 }

@@ -1,44 +1,39 @@
 export type Status = 'normal' | 'warning' | 'danger'
 
+// Resting adult reference ranges. Outside `normal` is a warning; outside
+// `limits` (where given) is marked as danger.
+export interface Range { normal: [number, number]; limits: [number, number] }
+
+export const RANGES: Record<string, Range> = {
+  co:  { normal: [4.0, 8.0],  limits: [2.5, 10] },
+  sv:  { normal: [60, 100],   limits: [30, 140] },
+  sys: { normal: [90, 140],   limits: [80, 160] },
+  dia: { normal: [60, 90],    limits: [50, 100] },
+  map: { normal: [70, 105],   limits: [60, 120] },
+  pp:  { normal: [25, 60],    limits: [20, 80] },
+  ef:  { normal: [50, 70],    limits: [30, 80] },
+  hr:  { normal: [60, 100],   limits: [40, 150] },
+}
+
 export function classify(name: string, value: number): Status {
-  switch (name) {
-    case 'co':
-      if (value < 2.5) return 'danger'
-      if (value < 4.0) return 'warning'
-      return 'normal'
-    case 'sys':
-      if (value > 160 || value < 80) return 'danger'
-      if (value > 140 || value < 90) return 'warning'
-      return 'normal'
-    case 'dia':
-      if (value > 100 || value < 50) return 'danger'
-      if (value > 90  || value < 60) return 'warning'
-      return 'normal'
-    case 'sv':
-      if (value < 30) return 'danger'
-      if (value < 50) return 'warning'
-      return 'normal'
-    case 'map':
-      if (value < 60 || value > 120) return 'danger'
-      if (value < 70 || value > 105) return 'warning'
-      return 'normal'
-    case 'pp':
-      if (value > 80 || value < 20) return 'danger'
-      if (value > 60 || value < 25) return 'warning'
-      return 'normal'
-    default:
-      return 'normal'
-  }
+  const r = RANGES[name]
+  if (!r) return 'normal'
+  if (value < r.limits[0] || value > r.limits[1]) return 'danger'
+  if (value < r.normal[0] || value > r.normal[1]) return 'warning'
+  return 'normal'
+}
+
+// 'Low' / 'High' label that accompanies a status colour, so state is never colour alone.
+export function direction(name: string, value: number): 'Low' | 'High' | null {
+  const r = RANGES[name]
+  if (!r) return null
+  if (value < r.normal[0]) return 'Low'
+  if (value > r.normal[1]) return 'High'
+  return null
 }
 
 export const STATUS_COLOR: Record<Status, string> = {
-  normal:  '#059669',
-  warning: '#d97706',
-  danger:  '#dc2626',
-}
-
-export const STATUS_BG: Record<Status, string> = {
-  normal:  '#f0fdf4',
-  warning: '#fffbeb',
-  danger:  '#fff1f2',
+  normal:  '#18181b',
+  warning: '#b45309',
+  danger:  '#b91c1c',
 }

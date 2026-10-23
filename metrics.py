@@ -15,6 +15,7 @@ def calculate_metrics(t, X, p, rr_intervals=None):
 
     Regular rhythms: snap to exact cycle boundaries for a clean PV loop.
     Stochastic rhythms (AF, VF): average over last ~8 beats, pick representative loop.
+    Ejection fraction is SV / EDV (in %); hr is the effective rate over the same beats.
     """
     n = len(t)
     LVOF = np.zeros(n)
@@ -53,7 +54,7 @@ def calculate_metrics(t, X, p, rr_intervals=None):
 
     end_t = t[-1]
     _trapz = np.trapezoid if hasattr(np, 'trapezoid') else np.trapz
-    empty = dict(co=0, sv=0, sys=0, dia=0, map_val=0, pp=0,
+    empty = dict(co=0, sv=0, sys=0, dia=0, map_val=0, pp=0, ef=0, hr=0,
                  lv_vol=np.array([]), lvp=np.array([]),
                  lvof=LVOF, lvp_full=LVP)
 
@@ -64,7 +65,7 @@ def calculate_metrics(t, X, p, rr_intervals=None):
 
         n_avg_beats = min(8, len(valid) - 2)
         avg_start_idx = len(valid) - 1 - n_avg_beats
-        beat_svs, beat_sys, beat_dia, beat_ranges = [], [], [], []
+        beat_svs, beat_sys, beat_dia, beat_edv, beat_ranges = [], [], [], [], []
         for b in range(avg_start_idx, len(valid) - 1):
             bs = valid[b]
             be = valid[b + 1]
@@ -74,6 +75,7 @@ def calculate_metrics(t, X, p, rr_intervals=None):
             beat_svs.append(_trapz(LVOF[b_idx], t[b_idx]))
             beat_sys.append(np.max(X[b_idx, 0]))
             beat_dia.append(np.min(X[b_idx, 0]))
+            beat_edv.append(np.max(X[b_idx, 11]))
             beat_ranges.append(b_idx)
 
         if len(beat_svs) == 0:
@@ -92,6 +94,8 @@ def calculate_metrics(t, X, p, rr_intervals=None):
         return dict(
             co=avg_co, sv=avg_sv, sys=avg_sys, dia=avg_dia,
             map_val=avg_dia + (avg_sys - avg_dia) / 3.0,
+            ef=np.mean(np.array(beat_svs) / np.array(beat_edv)) * 100.0,
+            hr=60.0 / avg_rr,
             pp=avg_sys - avg_dia,
             lv_vol=X[pv_idx, 11], lvp=LVP[pv_idx],
             lvof=LVOF, lvp_full=LVP,
@@ -121,6 +125,7 @@ def calculate_metrics(t, X, p, rr_intervals=None):
 
     return dict(
         co=co, sv=sv, sys=sys_p, dia=dia_p, map_val=map_val, pp=pp,
+        ef=sv / np.max(X[idx, 11]) * 100.0, hr=hr,
         lv_vol=X[idx, 11], lvp=LVP[idx],
         lvof=LVOF, lvp_full=LVP,
     )

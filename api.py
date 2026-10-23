@@ -62,6 +62,8 @@ def _serialize(r: dict | None) -> dict | None:
             "dia":      float(m["dia"]),
             "map_val":  float(m["map_val"]),
             "pp":       float(m["pp"]),
+            "ef":       float(m["ef"]),
+            "hr":       float(m["hr"]),
             "lv_vol":   _arr(m["lv_vol"]),
             "lvp":      _arr(m["lvp"]),
             "lvof":     _arr(m["lvof"]),
@@ -90,7 +92,7 @@ async def simulate(req: SimRequest):
     loop = asyncio.get_event_loop()
     r1, r2 = await loop.run_in_executor(_pool, _run_sync, req)
     if r1 is None:
-        raise HTTPException(422, "Solver failed to converge — try increasing duration")
+        raise HTTPException(422, "The ODE solver did not converge for these settings.")
     return {"primary": _serialize(r1), "comparison": _serialize(r2)}
 
 

@@ -1,15 +1,7 @@
 import type { SimResult } from '../types'
+import { STATE_VARS } from '../lib/stateVars'
 
-const STATE_LABELS = [
-  ['Aortic Pressure','mmHg'],['Aortic Flow','cm³/s'],
-  ['Systemic Arterial Pressure','mmHg'],['Systemic Peripheral Flow','cm³/s'],
-  ['Systemic Venous Pressure','mmHg'],['Right Ventricle Volume','cm³'],
-  ['Pulmonary Artery Pressure','mmHg'],['Pulmonary Arterial Flow','cm³/s'],
-  ['Pulmonary Arteriole Pressure','mmHg'],['Pulmonary Venous Flow','cm³/s'],
-  ['Pulmonary Venous / LA Pressure','mmHg'],['Left Ventricle Volume','cm³'],
-]
-
-function slug(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '_') }
+function slug(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') }
 
 function download(filename: string, csv: string) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -20,70 +12,72 @@ function download(filename: string, csv: string) {
 }
 
 function toCSV(headers: string[], rows: (number | string)[][]): string {
-  return [headers.join(','), ...rows.map(r => r.map(v => typeof v === 'number' ? v.toFixed(6) : v).join(','))].join('\n')
+  const esc = (h: string) => (/[",]/.test(h) ? `"${h.replace(/"/g, '""')}"` : h)
+  return [headers.map(esc).join(','),
+    ...rows.map(r => r.map(v => (typeof v === 'number' ? v.toFixed(6) : v)).join(','))].join('\n')
 }
 
+const STATE_HEADERS = STATE_VARS.map(v => `${v.id} ${v.name} (${v.unit})`)
+
 function waveformCSV(r: SimResult, plotWindow: number): string {
-  const tEnd = r.t[r.t.length - 1]
+  const tEnd   = r.t[r.t.length - 1]
   const tStart = Math.max(0, tEnd - plotWindow)
   const idx = r.t.map((_, i) => i).filter(i => r.t[i] >= tStart)
-  const headers = ['Time (s)', ...STATE_LABELS.map(([n, u]) => `${n} (${u})`), 'ECG (mV)', 'LV Pressure (mmHg)', 'LV Outflow (cm³/s)']
+  const headers = ['Time (s)', ...STATE_HEADERS, 'ECG, synthetic (a.u.)', 'LV pressure (mmHg)', 'LV outflow (mL/s)']
   const rows = idx.map(i => [r.t[i], ...r.X[i], r.ecg[i], r.metrics.lvp_full[i], r.metrics.lvof[i]])
   return toCSV(headers, rows)
 }
 
 function pvCSV(r: SimResult): string {
-  const headers = ['LV Volume (cm³)', 'LV Pressure (mmHg)']
-  const rows = r.metrics.lv_vol.map((v, i) => [v, r.metrics.lvp[i]])
-  return toCSV(headers, rows)
+  return toCSV(['LV volume (mL)', 'LV pressure (mmHg)'], r.metrics.lv_vol.map((v, i) => [v, r.metrics.lvp[i]]))
 }
 
 function fullCSV(r: SimResult): string {
-  const headers = ['Time (s)', ...STATE_LABELS.map(([n, u]) => `${n} (${u})`)]
-  const rows = r.t.map((t, i) => [t, ...r.X[i]])
-  return toCSV(headers, rows)
-}
-
-interface SectionProps { result: SimResult; plotWindow: number; label: string }
-
-function ExportSection({ result, plotWindow, label }: SectionProps) {
-  const s = slug(result.preset)
-  return (
-    <div className="card p-5 mb-4">
-      <p className="text-xs font-semibold text-muted uppercase tracking-widest mb-4">{label}</p>
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { icon: '≋', title: 'Waveform Data', sub: 'Plot window · all signals', fn: () => download(`cardiosim_${s}_waveforms.csv`, waveformCSV(result, plotWindow)) },
-          { icon: '◯', title: 'PV Loop Data',  sub: 'LV volume × pressure',     fn: () => download(`cardiosim_${s}_pvloop.csv`,    pvCSV(result)) },
-          { icon: '⊞', title: 'Full Simulation',sub: 'All time points · 12 ODEs', fn: () => download(`cardiosim_${s}_full.csv`,      fullCSV(result)) },
-        ].map(({ icon, title, sub, fn }) => (
-          <button key={title} onClick={fn} className="export-btn flex-col gap-1.5 py-4">
-            <span className="text-lg">{icon}</span>
-            <span className="font-medium">{title}</span>
-            <span className="text-[10px] text-[#334155]">{sub}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
+  return toCSV(['Time (s)', ...STATE_HEADERS], r.t.map((t, i) => [t, ...r.X[i]]))
 }
 
 interface Props { primary: SimResult; comparison: SimResult | null; plotWindow: number }
 
 export function ExportPanel({ primary, comparison, plotWindow }: Props) {
+  const runs = comparison ? [['A', primary], ['B', comparison]] as const : [['', primary]] as const
+  const files = (r: SimResult) => {
+    const s = slug(r.preset)
+    return [
+      { name: 'Waveforms', file: `cardiosim_${s}_waveforms.csv`,
+        content: `Last ${plotWindow.toFixed(2)} s: time, X1–X12, ECG, LV pressure, LV outflow`,
+        rows: r.t.filter(t => t >= r.t[r.t.length - 1] - plotWindow).length,
+        make: () => waveformCSV(r, plotWindow) },
+      { name: 'Pressure–volume loop', file: `cardiosim_${s}_pvloop.csv`,
+        content: 'LV volume and pressure over the plotted beat',
+        rows: r.metrics.lv_vol.length,
+        make: () => pvCSV(r) },
+      { name: 'Full run', file: `cardiosim_${s}_full.csv`,
+        content: 'All time points: time, X1–X12',
+        rows: r.t.length,
+        make: () => fullCSV(r) },
+    ]
+  }
+
   return (
-    <div>
-      <ExportSection result={primary} plotWindow={plotWindow} label={`Primary: ${primary.preset}`} />
-      {comparison
-        ? <ExportSection result={comparison} plotWindow={plotWindow} label={`Comparison: ${comparison.preset}`} />
-        : (
-          <div className="card p-5 text-center">
-            <p className="text-muted text-sm">Enable Compare Mode to export a second condition.</p>
-          </div>
-        )}
-      <p className="text-xs text-[#1e293b] mt-4 text-center">
-        Waveform data covers the current plot window · Full simulation exports all time points
-      </p>
+    <div className="export">
+      <table className="data-table export-table">
+        <thead>
+          <tr>{comparison && <th>Run</th>}<th>Data</th><th>Columns</th><th className="num">Rows</th><th>File</th><th></th></tr>
+        </thead>
+        <tbody>
+          {runs.map(([tag, r]) => files(r).map(f => (
+            <tr key={tag + f.file}>
+              {comparison && <td>{tag}: {r.preset}</td>}
+              <td>{f.name}</td>
+              <td className="muted">{f.content}</td>
+              <td className="num">{f.rows.toLocaleString()}</td>
+              <td className="mono-ish">{f.file}</td>
+              <td><button type="button" className="btn" onClick={() => download(f.file, f.make())}>Download</button></td>
+            </tr>
+          )))}
+        </tbody>
+      </table>
+      <p className="note">Comma-separated, one header row, units in the headers. Volumes in mL (1 mL = 1 cm³).</p>
     </div>
   )
 }

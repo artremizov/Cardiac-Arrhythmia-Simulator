@@ -1,37 +1,76 @@
-import type { Presets, PresetInfo } from '../types'
+import { useEffect, useState } from 'react'
+import type { Presets } from '../types'
 
-const CAT_COLOR: Record<string, string> = {
-  normal:     '#059669',
-  arrhythmia: '#d97706',
-  structural: '#2563eb',
-  critical:   '#dc2626',
-}
+const GROUPS: [string, string][] = [
+  ['normal', 'Normal'], ['arrhythmia', 'Arrhythmia'], ['structural', 'Structural'], ['critical', 'Critical'],
+]
 
-interface SliderProps {
-  label: string; value: number; min: number; max: number; step: number
-  format?: (v: number) => string; onChange: (v: number) => void
-}
-
-function Slider({ label, value, min, max, step, format, onChange }: SliderProps) {
-  const pct     = ((value - min) / (max - min)) * 100
-  const display = format ? format(value) : String(value)
+function PresetSelect({ id, presets, value, onChange, exclude }: {
+  id: string; presets: Presets; value: string; onChange: (p: string) => void; exclude?: string
+}) {
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
-        <span style={{ fontSize: '0.78rem', color: '#374151', fontWeight: 500 }}>{label}</span>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.75rem', color: '#6b7280' }}>{display}</span>
+    <select id={id} value={value} onChange={e => onChange(e.target.value)}>
+      {GROUPS.map(([cat, label]) => {
+        const names = Object.keys(presets).filter(n => presets[n].category === cat && n !== exclude)
+        return names.length ? (
+          <optgroup key={cat} label={label}>
+            {names.map(n => <option key={n} value={n}>{n}</option>)}
+          </optgroup>
+        ) : null
+      })}
+    </select>
+  )
+}
+
+interface FieldProps {
+  id: string; label: string; unit: string; value: number
+  min: number; max: number; step: number; digits: number
+  onChange: (v: number) => void; disabled?: boolean; note?: string
+}
+
+// Slider with an editable numeric field; typed values are committed on Enter or blur
+function Field({ id, label, unit, value, min, max, step, digits, onChange, disabled, note }: FieldProps) {
+  const [text, setText] = useState(value.toFixed(digits))
+  useEffect(() => { setText(value.toFixed(digits)) }, [value, digits])
+
+  const commit = () => {
+    const v = parseFloat(text)
+    if (Number.isFinite(v)) {
+      const snapped = Math.round(Math.min(max, Math.max(min, v)) / step) * step
+      onChange(+snapped.toFixed(4))
+      setText(snapped.toFixed(digits))
+    } else {
+      setText(value.toFixed(digits))
+    }
+  }
+
+  return (
+    <div className={`field${disabled ? ' is-disabled' : ''}`}>
+      <div className="field-row">
+        <label htmlFor={id}>{label}</label>
+        <span className="field-value">
+          <input
+            type="text" inputMode="decimal" aria-label={`${label} (${unit})`}
+            value={text} disabled={disabled}
+            onChange={e => setText(e.target.value)}
+            onBlur={commit}
+            onKeyDown={e => { if (e.key === 'Enter') commit() }}
+          />
+          <span className="field-unit">{unit}</span>
+        </span>
       </div>
       <input
-        type="range" min={min} max={max} step={step} value={value}
+        id={id} type="range" min={min} max={max} step={step} value={value} disabled={disabled}
         onChange={e => onChange(Number(e.target.value))}
-        style={{ background: `linear-gradient(to right, #2563eb ${pct}%, #e5e7eb ${pct}%)` }}
       />
+      {note && <p className="field-note">{note}</p>}
     </div>
   )
 }
 
 interface Props {
   presets: Presets; preset: string; onPresetChange: (p: string) => void
+  modified: boolean; onReset: () => void
   compareMode: boolean; onCompareModeChange: (v: boolean) => void
   comparePreset: string; onComparePresetChange: (p: string) => void
   hr: number; onHrChange: (v: number) => void
@@ -40,128 +79,88 @@ interface Props {
   compl: number; onComplChange: (v: number) => void
   duration: number; onDurationChange: (v: number) => void
   plotWindow: number; onPlotWindowChange: (v: number) => void
-  onRun: () => void; loading: boolean; error: string | null; presetName: string
+  onRun: () => void; loading: boolean; error: string | null
 }
 
-export function Sidebar({
-  presets, preset, onPresetChange,
-  compareMode, onCompareModeChange, comparePreset, onComparePresetChange,
-  hr, onHrChange, contract, onContractChange,
-  resist, onResistChange, compl, onComplChange,
-  duration, onDurationChange, plotWindow, onPlotWindowChange,
-  onRun, loading, error,
-}: Props) {
-  const info: PresetInfo | undefined = presets[preset]
-  const cat    = info?.category ?? 'normal'
-  const catCol = CAT_COLOR[cat] ?? '#64748b'
+export function Sidebar(props: Props) {
+  const {
+    presets, preset, onPresetChange, modified, onReset,
+    compareMode, onCompareModeChange, comparePreset, onComparePresetChange,
+    hr, onHrChange, contract, onContractChange, resist, onResistChange, compl, onComplChange,
+    duration, onDurationChange, plotWindow, onPlotWindowChange, onRun, loading, error,
+  } = props
+  const info = presets[preset]
+
+  const hrNote =
+    preset === 'Ventricular Fibrillation'
+      ? 'Not used by this preset: R-R intervals are drawn uniformly from 0.12–0.25 s.'
+      : preset === 'Atrial Fibrillation'
+        ? 'Sets the mean of the random R-R intervals.'
+        : undefined
 
   return (
     <aside className="sidebar">
-      {/* Brand */}
-      <div style={{ padding: '20px 20px 18px', borderBottom: '1px solid #f1f5f9' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-          <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#111827', letterSpacing: '-0.03em' }}>Cardio</span>
-          <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#2563eb', letterSpacing: '-0.03em' }}>Sim</span>
-        </div>
-        <p style={{ fontSize: '0.67rem', color: '#94a3b8', marginTop: 3, fontWeight: 500, letterSpacing: '0.03em' }}>
-          Avanzolini 1988 · McSharry ECG · v3.0
-        </p>
-      </div>
+      <header className="sidebar-head">
+        <h1>CardioSim</h1>
+        <p>Lumped-parameter cardiovascular model (Avanzolini et al., 1988)</p>
+      </header>
 
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 16 }}>
-        {/* Clinical Preset */}
-        <div className="section-label" style={{ marginTop: 20 }}>Clinical Preset</div>
-        <div style={{ padding: '0 16px' }}>
-          <select value={preset} onChange={e => onPresetChange(e.target.value)}>
-            {Object.keys(presets).map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-          {info && (
-            <div style={{ marginTop: 10 }}>
-              <span
-                className="preset-badge"
-                style={{ background: catCol + '14', color: catCol }}
-              >
-                {cat}
+      <div className="sidebar-body">
+        <section className="group">
+          <div className="group-head">
+            <label className="group-label" htmlFor="preset">Preset</label>
+            {modified && (
+              <span className="modified">
+                Modified <button type="button" className="link-btn" onClick={onReset}>Reset</button>
               </span>
-              <p style={{ fontSize: '0.75rem', color: '#6b7280', lineHeight: 1.55, marginTop: 8 }}>{info.desc}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="sidebar-divider" />
-
-        {/* Compare mode */}
-        <div style={{ padding: '0 16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.78rem', fontWeight: 500, color: '#374151' }}>Compare Two Conditions</span>
-            <label className="toggle">
-              <input type="checkbox" checked={compareMode} onChange={e => onCompareModeChange(e.target.checked)} />
-              <span className="toggle-slider" />
-            </label>
+            )}
           </div>
+          <PresetSelect id="preset" presets={presets} value={preset} onChange={onPresetChange} />
+          {info && <p className="desc">{info.desc}</p>}
+        </section>
+
+        <section className="group">
+          <h2 className="group-label">Parameters</h2>
+          <Field id="hr" label="Heart rate" unit="bpm" value={hr} min={30} max={400} step={1} digits={0}
+                 onChange={onHrChange} disabled={preset === 'Ventricular Fibrillation'} note={hrNote} />
+          <Field id="contract" label="Contractility" unit="%" value={contract} min={10} max={160} step={1} digits={0}
+                 onChange={onContractChange} />
+          <Field id="resist" label="Peripheral resistance" unit="mmHg·s/mL" value={resist} min={0.4} max={2.5} step={0.05} digits={2}
+                 onChange={onResistChange} />
+          <Field id="compl" label="Arterial compliance" unit="mL/mmHg" value={compl} min={0.6} max={2.2} step={0.02} digits={2}
+                 onChange={onComplChange} />
+        </section>
+
+        <section className="group">
+          <label className="check">
+            <input type="checkbox" checked={compareMode} onChange={e => onCompareModeChange(e.target.checked)} />
+            Compare with a second preset
+          </label>
           {compareMode && (
-            <div style={{ marginTop: 12 }}>
-              <select value={comparePreset} onChange={e => onComparePresetChange(e.target.value)}>
-                {Object.keys(presets).filter(n => n !== preset).map(name => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-              {presets[comparePreset] && (
-                <p style={{ fontSize: '0.75rem', color: '#6b7280', lineHeight: 1.55, marginTop: 8 }}>
-                  {presets[comparePreset].desc}
-                </p>
-              )}
-              <p style={{ fontSize: '0.7rem', color: '#e11d48', marginTop: 8 }}>
-                Comparison shown in red on all charts
-              </p>
+            <div className="compare-body">
+              <PresetSelect id="compare-preset" presets={presets} value={comparePreset}
+                            onChange={onComparePresetChange} exclude={preset} />
+              {presets[comparePreset] && <p className="desc">{presets[comparePreset].desc}</p>}
+              <p className="field-note">Run B uses the preset's own parameters. It is drawn dashed.</p>
             </div>
           )}
-        </div>
+        </section>
 
-        <div className="sidebar-divider" />
-
-        {/* Parameters */}
-        <div className="section-label">Parameters</div>
-        <div style={{ padding: '0 16px' }}>
-          <Slider label="Heart Rate" value={hr} min={30} max={400} step={1}
-            format={v => `${v} bpm`} onChange={onHrChange} />
-          <Slider label="Contractility" value={contract} min={10} max={160} step={1}
-            format={v => `${v}%`} onChange={onContractChange} />
-          <Slider label="Peripheral Resistance" value={resist} min={0.4} max={2.5} step={0.05}
-            format={v => v.toFixed(2)} onChange={onResistChange} />
-          <Slider label="Arterial Compliance" value={compl} min={0.6} max={2.2} step={0.02}
-            format={v => v.toFixed(2)} onChange={onComplChange} />
-        </div>
-
-        <div className="sidebar-divider" />
-
-        {/* Simulation */}
-        <div className="section-label">Simulation</div>
-        <div style={{ padding: '0 16px' }}>
-          <Slider label="Duration" value={duration} min={2} max={20} step={0.5}
-            format={v => `${v.toFixed(1)} s`} onChange={onDurationChange} />
-          <Slider label="Plot Window" value={plotWindow} min={0.5} max={duration} step={0.25}
-            format={v => `${v.toFixed(2)} s`} onChange={v => onPlotWindowChange(Math.min(v, duration))} />
-
-          <button className="run-btn" style={{ marginTop: 4 }} onClick={onRun} disabled={loading}>
-            {loading ? <><span className="spinner" />Simulating…</> : 'Run Simulation'}
-          </button>
-          {error && (
-            <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: 8, lineHeight: 1.4 }}>{error}</p>
-          )}
-        </div>
+        <section className="group">
+          <h2 className="group-label">Simulation</h2>
+          <Field id="duration" label="Duration" unit="s" value={duration} min={2} max={20} step={0.5} digits={1}
+                 onChange={onDurationChange} />
+          <Field id="window" label="Plot window" unit="s" value={plotWindow} min={0.5} max={duration} step={0.25} digits={2}
+                 onChange={v => onPlotWindowChange(Math.min(v, duration))} />
+        </section>
       </div>
 
-      {/* Footer */}
-      <div style={{ padding: '12px 20px', borderTop: '1px solid #f1f5f9' }}>
-        <p style={{ fontSize: '0.67rem', color: '#cbd5e1' }}>
-          © 2025 Artemii Remizov · WSU ·{' '}
-          <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank"
-             style={{ color: '#9ca3af', textDecoration: 'underline' }}>CC BY-NC 4.0</a>
-        </p>
-      </div>
+      <footer className="sidebar-foot">
+        <button type="button" className="btn btn-primary" onClick={onRun} disabled={loading}>
+          {loading ? 'Running…' : 'Run simulation'}
+        </button>
+        {error && <p className="error" role="alert">{error}</p>}
+      </footer>
     </aside>
   )
 }
