@@ -1,0 +1,5 @@
+scenario,HR,kappa_elastance_only,CO,CO_pct_change,MAP
+Rate only,350,1.0,6.24,34.4,114.7
+Contractility only,75,0.5,3.55,-23.4,66.9
+VF-like,350,0.5,4.61,-0.6,85.5
+Severe VF-like,350,0.25,3.56,-23.4,66.5
