@@ -1,4 +1,4 @@
-[1] skipped: put the original model.py next to this file to compare
+[1] equations match repo model.py at <=225 bpm, max rel diff 0.0e+00: PASS
 
 Baseline
   [2] blood volume drift 4.2e-15: PASS

@@ -5,9 +5,10 @@ Checks, for each of the five scenarios: conservation of total blood volume, peri
 steady state, stroke volume computed two ways, flow balance through all four vascular
 segments, agreement with a different solver (DOP853) at a much tighter tolerance,
 insensitivity to doubling the run length (40 s vs 80 s), and agreement with
-results_scenarios.csv. Optionally compares the equations with the simulator's model.py.
+results_scenarios.csv. Also compares the equations with the simulator's model.py, found
+next to this file or in the folder above it (the repository root).
 """
-import sys, csv, re, importlib.util, contextlib, io
+import os, sys, csv, re, importlib.util, contextlib, io
 import numpy as np
 from scipy.integrate import solve_ivp
 
@@ -19,13 +20,18 @@ R = {}; exec(src, R)
 try:
     import model as repo  # original model.py from the GitHub repo, placed next to this file
 except ImportError:
-    repo = None
+    # otherwise the repository root, one folder above paper/
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    try:
+        import model as repo
+    except ImportError:
+        repo = None
 
 ok = lambda c: "PASS" if c else "FAIL"
 
 # 1. same equations as the original repo code
 if repo is None:
-    print("[1] skipped: put the original model.py next to this file to compare")
+    print("[1] skipped: model.py not found next to this file or in the folder above")
 rng = np.random.default_rng(0)
 worst = 0.0
 for hr in ([60, 75, 150, 225] if repo else []):
