@@ -232,7 +232,7 @@ def cardiovascular_model(t, X, p, rr_intervals=None):
     else:
         Tm = t % Tc
 
-    Ts = 0.16 + 0.3 * Tc
+    Ts = min(0.16 + 0.3 * Tc, 0.9 * Tc)  # cap so systole fits in the cycle above 225 bpm
     A = (1 - np.cos(2 * np.pi * Tm / Ts)) / 2 if Tm < Ts else 0
 
     UL = p["ULO"] * A
@@ -425,7 +425,7 @@ def calculate_metrics(t, X, p, rr_intervals=None):
             Tc_local = Tc
             Tm = t[i] % Tc_local
 
-        Ts = 0.16 + 0.3 * Tc_local
+        Ts = min(0.16 + 0.3 * Tc_local, 0.9 * Tc_local)  # cap so systole fits in the cycle above 225 bpm
         A = (1 - np.cos(2 * np.pi * Tm / Ts)) / 2 if Tm < Ts else 0
         UL = p["ULO"] * A
         EL = p["ELD"] + p["ELS"] * A

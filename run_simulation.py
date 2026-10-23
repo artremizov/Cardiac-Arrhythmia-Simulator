@@ -49,7 +49,7 @@ def cardiovascular_model(t, X):
     X1, X2, X3, X4, X5, X6, X7, X8, X9, X10, X11, X12 = X
 
     # --- Auxiliary Variables from Table I ---
-    Ts = 0.16 + 0.3 * Tc
+    Ts = min(0.16 + 0.3 * Tc, 0.9 * Tc)  # cap so systole fits in the cycle above 225 bpm
     Tm = t % Tc # The modulo operator in Python is %
     
     if Tm < Ts:
