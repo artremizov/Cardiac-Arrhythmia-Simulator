@@ -33,15 +33,17 @@ export function MetricsRow({ primary, comparison }: { primary: SimResult; compar
           <div className="strip-cell" key={label}>
             <div className="strip-label">{label}</div>
             <div className="strip-value">
-              {parts.map((pt, i) => {
-                const v = pt.get(primary.metrics)
-                return (
-                  <span key={pt.key}>
-                    {i > 0 && <span className="strip-sep">/</span>}
-                    <span style={{ color: STATUS_COLOR[classify(pt.key, v)] }}>{v.toFixed(pt.digits)}</span>
-                  </span>
-                )
-              })}
+              <span className="strip-num">
+                {parts.map((pt, i) => {
+                  const v = pt.get(primary.metrics)
+                  return (
+                    <span key={pt.key}>
+                      {i > 0 && <span className="strip-sep">/</span>}
+                      <span style={{ color: STATUS_COLOR[classify(pt.key, v)] }}>{v.toFixed(pt.digits)}</span>
+                    </span>
+                  )
+                })}
+              </span>
               <span className="strip-unit">{unit}</span>
             </div>
             <div className="strip-meta">
